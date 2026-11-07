@@ -8,6 +8,7 @@
 #   1. Versionsnummer in Launcher (backend/version.py) und Mod (gradle.properties) setzen
 #   2. Client-Mod bauen, Shader packen, Emberleaf.exe bauen
 #   3. emberleaf-release.json schreiben (Dateiliste mit SHA-256, daran prueft der Launcher die Downloads)
+#      und alle Dateien einmal komplett entpacken (tools/verify_build.py)
 #   4. Code committen, Tag v<Version> setzen, zu GitHub pushen und das Release mit allen Dateien anlegen
 param(
     [Parameter(Mandatory = $true)] [string]$Version,
@@ -98,6 +99,11 @@ Get-ChildItem (Join-Path $launcher "packs\shaderpacks") -Filter "Emberleaf-*.zip
 $manifest = [ordered]@{ version = $Version; notes = $Notes; files = $files }
 [IO.File]::WriteAllText((Join-Path $out "emberleaf-release.json"), ($manifest | ConvertTo-Json -Depth 5), $utf8)
 $files | ForEach-Object { "{0,-34} {1,8:N0} KB  {2}" -f $_.name, ($_.size / 1KB), $_.kind }
+
+Step "Dateien pruefen (komplett entpacken)"
+# Dieser PC hatte schon umgekippte Bits beim Kopieren: kaputte Dateien duerfen nie an alle gehen
+& $python -W ignore (Join-Path $launcher "tools\verify_build.py") $out
+Check "Die Pruefung der Release-Dateien"
 
 if ($NoPublish) { Write-Host "Fertig gebaut (nicht hochgeladen): $out"; exit 0 }
 

@@ -19,6 +19,9 @@ emberleaf-mod/tools/jdk-path.txt
 # CC0-Lizenz aus der Fabric-Vorlage: gilt nicht für Emberleaf
 emberleaf-mod/LICENSE
 
+# Lagerfeuer: lokale Test-Datenbank von wrangler dev
+emberleaf-server/.wrangler/
+
 # lokal
 .claude/
 *.part

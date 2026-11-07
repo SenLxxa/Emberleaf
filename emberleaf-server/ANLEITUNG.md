@@ -16,7 +16,7 @@ reicht für hunderte Spieler. Eine Kreditkarte braucht ihr nicht.
 - wer mit wem befreundet ist und offene Anfragen
 - ob du online bist und auf welchem Server (Adresse)
 - dein angelegtes Emberleaf-Outfit, damit andere es im Spiel sehen
-- die Emberleaf-Updates, die der Besitzer verteilt (Client-Mod, Texturenpaket, Shader)
+- Chats, Party-Einladungen und Bilder, die ihr euch schickt
 
 Passwörter oder Minecraft-Tokens bekommt der Server **nie**. Die Anmeldung läuft wie beim
 Betreten eines echten Minecraft-Servers: Mojang bestätigt dem Lagerfeuer, dass du wirklich du bist.
@@ -44,20 +44,15 @@ Betreten eines echten Minecraft-Servers: Mojang bestätigt dem Lagerfeuer, dass 
 
    Speichern bzw. **Deploy**.
 
-   **Updates verteilen (nur der Besitzer):** Beim Worker **Settings → Variables and Secrets → Add**.
-   - Type: `Text`, Variable name: `UPDATE_OWNER`, Value: dein Minecraft-Name (z.B. `SenLxca`)
-
-   Dann erscheint bei dir in Emberleaf unter **Einstellungen → Emberleaf-Updates** der Knopf
-   **An alle verteilen**. Die Launcher deiner Freunde holen neue Versionen von selbst (beim Start und
-   alle 30 Minuten) und nutzen sie ab dem nächsten Spielstart.
+   (Emberleaf-Updates laufen inzwischen über GitHub, dafür musst du am Lagerfeuer nichts einstellen.)
 
 6. **Testen:** Öffne `https://lagerfeuer.<dein-name>.workers.dev/v1/health` im Browser
    (die genaue Adresse steht beim Worker unter **Domains & Routes**).
    Da muss stehen: `{"ok":true,"name":"Emberleaf Lagerfeuer"}`
 
-7. **In Emberleaf eintragen:** Emberleaf öffnen → **Freunde** → die Adresse
-   `https://lagerfeuer.<dein-name>.workers.dev` eintragen → **Verbinden**.
-   Schick die Adresse deinen Freunden, sie tragen genau dieselbe ein.
+7. **In Emberleaf eintragen:** Das offizielle Emberleaf hat die Adresse seines Lagerfeuers schon eingebaut
+   (`LAGERFEUER_URL` in `emberleaf/backend/version.py`), da muss niemand etwas eintippen.
+   Ein eigenes Lagerfeuer trägst du unter **Einstellungen → Lagerfeuer (Freunde)** ein, deine Freunde dieselbe Adresse.
 
 ---
 
@@ -83,5 +78,4 @@ npx wrangler deploy
 | „Die Datenbank ist nicht verbunden (D1-Bindung „DB“ fehlt)“ | Schritt 5: Die Bindung muss genau `DB` heißen. |
 | „Die Minecraft-Anmeldung konnte nicht bestätigt werden“ | Im Launcher ab- und wieder anmelden, dann neu versuchen. |
 | „… nutzt Emberleaf noch nicht“ | Dein Freund muss Emberleaf einmal mit derselben Lagerfeuer-Adresse geöffnet und sich angemeldet haben. |
-| „Updates verteilen ist aus“ | Schritt 5: Variable `UPDATE_OWNER` mit deinem Minecraft-Namen anlegen. |
 | Freunde sehen deine Cosmetics nicht | Ihr müsst beide dieselbe Adresse eingetragen haben und Emberleaf im Spiel nutzen (Fabric-Profil 26.3). |

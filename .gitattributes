@@ -1,0 +1,12 @@
+# Im Repo immer LF speichern, egal wie die Datei auf Windows aussieht
+* text=auto
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+gradlew text eol=lf
+*.png binary
+*.bin binary
+*.jar binary
+*.zip binary
+*.ico binary
+*.ttf binary
+*.woff2 binary
