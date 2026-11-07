@@ -1,0 +1,6 @@
+pywebview==6.2.1
+minecraft-launcher-lib==8.0
+requests==2.34.2
+# Emberleaf-Texturenpaket (backend/packassembler.py) und Insel-Texturen für den Launcher
+numpy==2.5.4
+pillow==13.0.0

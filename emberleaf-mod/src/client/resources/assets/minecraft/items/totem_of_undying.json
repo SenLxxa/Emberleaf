@@ -1,0 +1,9 @@
+{
+  "model": {
+    "type": "minecraft:special",
+    "base": "emberleaf:item/skin_totem",
+    "model": {
+      "type": "emberleaf:skin_totem"
+    }
+  }
+}

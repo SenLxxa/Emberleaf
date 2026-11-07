@@ -1,0 +1,17 @@
+{
+	"key.category.emberleaf.main": "Emberleaf",
+	"key.emberleaf.zoom": "Zoom (hold)",
+	"key.emberleaf.emote": "Emote (tap) / emote wheel (hold)",
+	"key.emberleaf.menu": "Open Emberleaf menu",
+	"key.emberleaf.freelook": "Freelook (hold)",
+	"key.emberleaf.panorama": "Panorama screenshot",
+	"key.emberleaf.tools": "Open tools",
+	"key.emberleaf.chat_peek": "Chat peek (hold)",
+	"key.emberleaf.autotext_1": "AutoText 1",
+	"key.emberleaf.autotext_2": "AutoText 2",
+	"key.emberleaf.autotext_3": "AutoText 3",
+	"key.emberleaf.autotext_4": "AutoText 4",
+	"key.emberleaf.autotext_5": "AutoText 5",
+	"key.emberleaf.party": "Lagerfeuer: chat, friends and party",
+	"key.emberleaf.player_menu": "Player menu (look at a player)"
+}

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#1b1310">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lagerfeuer">
+<title>Lagerfeuer</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<div id="app" class="loading">
+  <header class="top">
+    <button class="icon-btn" id="back" hidden aria-label="Zurück">‹</button>
+    <div class="title"><h1 id="title">Lagerfeuer</h1><small id="subtitle"></small></div>
+    <div id="top-actions"></div>
+  </header>
+  <main id="view"></main>
+  <nav class="tabs" id="tabs" hidden>
+    <button data-tab="chats"><span class="tab-icon">💬</span><span>Chats</span><b class="dot" id="unread-dot" hidden></b></button>
+    <button data-tab="friends"><span class="tab-icon">🔥</span><span>Freunde</span><b class="dot" id="request-dot" hidden></b></button>
+    <button data-tab="party"><span class="tab-icon">🎉</span><span>Party</span><b class="dot" id="party-dot" hidden></b></button>
+    <button data-tab="me"><span class="tab-icon">🍁</span><span>Ich</span></button>
+  </nav>
+</div>
+<div id="sheet-backdrop" hidden></div>
+<section id="sheet" hidden></section>
+<div id="toast" role="status"></div>
+<div id="lightbox" hidden><img alt=""></div>
+</body>
+</html>

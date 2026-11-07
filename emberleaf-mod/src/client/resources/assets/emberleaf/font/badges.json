@@ -1,0 +1,26 @@
+{
+ "providers": [
+  {
+   "type": "bitmap",
+   "file": "emberleaf:font/badges.png",
+   "ascent": 8,
+   "height": 9,
+   "chars": [
+    "\ue100\ue101\ue102\ue103\ue104\ue105\ue106\ue107\ue108\ue109"
+   ]
+  },
+  {
+   "type": "bitmap",
+   "file": "emberleaf:font/reactions.png",
+   "ascent": 8,
+   "height": 9,
+   "chars": [
+    "\ue120\ue121\ue122\ue123\ue124\ue125"
+   ]
+  },
+  {
+   "type": "reference",
+   "id": "minecraft:default"
+  }
+ ]
+}

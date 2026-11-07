@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Emberleaf</title>
+  <link rel="icon" href="assets/logo.png">
+  <link rel="stylesheet" href="fonts/fonts.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="titlebar">
+    <div class="brand pywebview-drag-region">
+      <img class="logo" src="assets/logo.png" alt="">
+      <span class="brand-name">Emberleaf</span>
+    </div>
+    <div class="drag pywebview-drag-region"></div>
+    <nav class="tabs" aria-label="Bereiche">
+      <button class="tab active" data-page="play">Spielen</button>
+      <button class="tab" data-page="profiles">Profile</button>
+      <button class="tab" data-page="mods">Mods</button>
+      <button class="tab" data-page="cosmetics">Cosmetics</button>
+      <button class="tab" data-page="skins">Skins</button>
+      <button class="tab" data-page="friends">Freunde <span class="tab-badge" id="friends-badge" hidden></span></button>
+    </nav>
+    <div class="drag pywebview-drag-region"></div>
+    <div class="titlebar-right">
+      <button class="account-chip" data-page="settings" title="Konto & Einstellungen">
+        <canvas id="account-head" width="24" height="24"></canvas>
+        <span id="account-name">Gast</span>
+        <span class="account-dot" id="account-dot"></span>
+      </button>
+      <button class="icon-btn news-btn" id="news-btn" title="Neu in Emberleaf"><span aria-hidden="true">✨</span><span class="news-dot" id="news-dot" hidden></span></button>
+      <button class="icon-btn" data-page="settings" title="Einstellungen">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2h4v3h3v3h3v4h-3v3h-3v3h-4v-3H7v-3H4V8h3V5h3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="miter"/><rect x="10" y="9" width="4" height="4" fill="currentColor"/></svg>
+      </button>
+      <div class="win-controls">
+        <button data-win="minimize" title="Minimieren"><svg viewBox="0 0 12 12"><rect x="2" y="6" width="8" height="2" fill="currentColor"/></svg></button>
+        <button data-win="maximize" title="Maximieren"><svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+        <button data-win="close" class="close" title="Schließen"><svg viewBox="0 0 12 12"><path d="M3 3h2v2H3zM7 3h2v2H7zM5 5h2v2H5zM3 7h2v2H3zM7 7h2v2H7z" fill="currentColor"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Spielen -->
+    <section class="page active" id="page-play">
+      <div class="scene" id="scene">
+        <div class="sky"></div>
+        <div class="stars" id="stars"></div>
+        <div class="sun"></div>
+        <div class="cloud" style="top: 10%; --w: 180px; animation-duration: 150s; animation-delay: -40s"></div>
+        <div class="cloud" style="top: 22%; --w: 120px; animation-duration: 120s; animation-delay: -90s"></div>
+        <div class="cloud" style="top: 5%; --w: 90px; animation-duration: 180s; animation-delay: -130s"></div>
+        <canvas id="world-canvas" title="Ziehen zum Drehen · Doppelklick: Emote"></canvas>
+
+        <div class="greeting">
+          <h1 id="greeting-title">Hallo!</h1>
+          <p id="greeting-sub"></p>
+          <p class="greeting-playtime" id="greeting-playtime" hidden></p>
+        </div>
+
+        <aside class="play-card">
+          <div class="pc-label">Profil</div>
+          <div class="picker-wrap">
+            <button class="profile-picker" id="profile-picker">
+              <span class="pp-icon" id="pp-icon">🍁</span>
+              <span class="pp-text"><b id="pp-name">Noch kein Profil</b><small id="pp-meta">Erstell dir eins</small></span>
+              <svg class="chev" viewBox="0 0 12 12"><path d="M2 4h2v2H2zM4 6h2v2H4zM6 6h2v2H6zM8 4h2v2H8z" fill="currentColor"/></svg>
+            </button>
+            <div class="profile-menu" id="profile-menu" hidden></div>
+          </div>
+          <button class="play-btn" id="play-btn">
+            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 2h2v8H3zM5 3h2v6H5zM7 4h2v4H7zM9 5h1v2H9z" fill="currentColor"/></svg>
+            <span><b id="play-title">Spielen</b><small id="play-sub"></small></span>
+          </button>
+          <div class="progress" id="play-progress" hidden><div class="progress-bar" id="play-progress-bar"></div></div>
+          <div class="pc-status" id="pc-status" hidden></div>
+          <div class="pc-chips" id="pc-chips"></div>
+        </aside>
+
+        <div class="scene-foot" id="scene-foot"></div>
+      </div>
+    </section>
+
+    <!-- Profile -->
+    <section class="page" id="page-profiles">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <h2>Deine Profile</h2>
+            <p>Jedes Profil hat eigene Mods, Welten und Einstellungen.</p>
+          </div>
+          <button class="btn primary" data-new-profile>+ Neues Profil</button>
+        </div>
+        <div class="profile-grid" id="profile-grid"></div>
+      </div>
+    </section>
+
+    <!-- Mods -->
+    <section class="page" id="page-mods">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <h2>Mods & mehr</h2>
+            <p>Durchsuche Modrinth und installiere mit einem Klick. Was eine Mod braucht, kommt automatisch mit.</p>
+          </div>
+        </div>
+        <div id="mods-empty" class="notice" hidden>Erstell zuerst ein Profil, dann kannst du Mods hinzufügen. <button class="btn small" data-new-profile>Profil erstellen</button></div>
+        <div id="mods-main">
+          <div class="mods-toolbar">
+            <select class="select" id="mods-profile" aria-label="Profil"></select>
+            <div class="seg" id="mods-type">
+              <button data-type="mod">Mods</button>
+              <button data-type="resourcepack">Resourcepacks</button>
+              <button data-type="shader">Shader</button>
+            </div>
+            <div class="seg" id="mods-source">
+              <button data-source="modrinth">Modrinth</button>
+              <button data-source="curseforge">CurseForge</button>
+            </div>
+            <label class="search">
+              <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1h4v1H3zM2 2h1v1H2zM7 2h1v1H7zM1 3h1v4H1zM8 3h1v4H8zM2 7h1v1H2zM7 7h1v1H7zM3 8h4v1H3zM8 8h1v1H8zM9 9h1v1H9zM10 10h1v1h-1z" fill="currentColor"/></svg>
+              <input id="mods-query" type="search" placeholder="Suchen, z.B. Sodium, Iris, Xaero …" autocomplete="off">
+            </label>
+          </div>
+          <div class="notice" id="mods-hint" hidden></div>
+          <div class="mods-layout">
+            <div>
+              <div class="mods-count" id="mods-count"></div>
+              <div id="mod-results"></div>
+            </div>
+            <aside class="installed-panel">
+              <div class="installed-head"><h3>Installiert</h3><button class="btn small" id="add-local" title="Eigene .jar- oder .zip-Datei in dieses Profil legen">+ Eigene Datei</button></div>
+              <input type="file" id="add-local-file" accept=".jar,.zip" hidden>
+              <div id="installed-list"></div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cosmetics -->
+    <section class="page" id="page-cosmetics">
+      <div class="shop">
+        <nav class="shop-tabs" id="shop-tabs"></nav>
+        <div class="shop-body">
+          <aside class="shop-preview">
+            <div class="sp-head"><h3>Dein Look</h3><button class="btn small" id="sp-clear">Alles ablegen</button></div>
+            <div class="sp-stage" id="sp-stage"><canvas id="sp-canvas" title="Ziehen zum Drehen"></canvas></div>
+            <div class="sp-equipped" id="sp-equipped"></div>
+          </aside>
+          <div class="shop-main">
+            <div class="shop-head">
+              <div><h2 id="shop-title"></h2><p id="shop-hint"></p></div>
+              <div class="row-actions"><button class="btn" id="shop-templates" title="Die Blockbench-Dateien des Starter-Sets als Vorlage öffnen">Vorlagen</button><button class="btn" id="shop-paint" hidden>Cape malen</button><button class="btn primary" id="shop-create">Blockbench-Modell laden</button></div>
+            </div>
+            <div class="shop-grid" id="shop-grid"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Skins -->
+    <section class="page" id="page-skins">
+      <div class="page-inner" id="skins-body">
+        <div class="page-head">
+          <div>
+            <h2>Deine Skins</h2>
+            <p>Sammle Skins und zieh sie mit einem Klick an. Im Spiel wechselst du sie im Emberleaf-Menü (Rechte Shift-Taste).</p>
+          </div>
+          <div class="row-actions">
+            <button class="btn" id="skins-save-current">Aktuellen speichern</button>
+            <button class="btn primary" id="skins-add">+ Skin hinzufügen</button>
+            <input type="file" id="skins-file" accept=".png,image/png" hidden>
+          </div>
+        </div>
+        <div class="skins-layout">
+          <aside class="skins-preview">
+            <div class="skins-stage" id="skins-stage"><canvas id="skins-canvas" title="Ziehen zum Drehen"></canvas></div>
+            <div class="skins-info"><b id="skins-name"></b><small id="skins-meta"></small></div>
+            <button class="btn primary skins-apply" id="skins-apply" hidden>Anziehen</button>
+          </aside>
+          <div class="skins-grid" id="skins-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Freunde -->
+    <section class="page" id="page-friends">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <h2>Das Lagerfeuer</h2>
+            <p>Freunde, Chats und Party – auch im Spiel (Taste U) und auf dem Handy.</p>
+          </div>
+          <div class="row-actions friends-head-actions">
+            <div class="seg" id="friends-tabs" hidden>
+              <button data-ftab="friends" class="active">Freunde</button>
+              <button data-ftab="chats">Chats <span class="tab-badge" id="chats-badge" hidden></span></button>
+              <button data-ftab="party">Party <span class="tab-badge" id="party-badge" hidden></span></button>
+            </div>
+            <button class="btn" id="friends-phone" hidden>📱 Handy verbinden</button>
+            <button class="btn" id="friends-refresh" hidden>Aktualisieren</button>
+          </div>
+        </div>
+        <div id="friends-body"></div>
+      </div>
+    </section>
+
+    <!-- Einstellungen -->
+    <section class="page" id="page-settings">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <h2>Einstellungen</h2>
+            <p>Konto, Spiel und alles, was Emberleaf sich merkt.</p>
+          </div>
+          <button class="btn primary" id="settings-save">Speichern</button>
+        </div>
+        <div class="settings-grid">
+          <div class="card">
+            <h3>Microsoft-Konto</h3>
+            <p class="hint" id="account-hint"></p>
+            <div class="row-actions" id="account-actions"></div>
+          </div>
+          <div class="card">
+            <h3>Skin-Vorschau</h3>
+            <p class="hint">Solange du nicht angemeldet bist, zeigt Emberleaf den Skin zu diesem Namen.</p>
+            <div class="field">
+              <label for="set-username">Minecraft-Name</label>
+              <input class="input" id="set-username" maxlength="16" autocomplete="off">
+            </div>
+          </div>
+          <div class="card">
+            <h3>Spiel</h3>
+            <p class="hint">Für Shader und viele Mods sind 4–6 GB gut. Dein PC hat 32 GB.</p>
+            <div class="field">
+              <label for="set-ram">Arbeitsspeicher für Minecraft</label>
+              <div class="range-row">
+                <input type="range" id="set-ram" min="2048" max="16384" step="512">
+                <span class="range-value" id="set-ram-value"></span>
+              </div>
+            </div>
+            <label class="check"><input type="checkbox" id="set-minimize"> Emberleaf beim Spielstart minimieren</label>
+          </div>
+          <div class="card">
+            <h3>Hauptmenü</h3>
+            <p class="hint">Welche Welt im Launcher und live gerendert hinter dem Spiel-Hauptmenü liegt. „Abwechselnd“ wählt bei jedem Start eine andere. Qualität, Kameraflug und Unschärfe stellst du im Spiel im Emberleaf-Menü ein.</p>
+            <div class="field">
+              <label for="set-scene">Szene</label>
+              <select class="input" id="set-scene">
+                <option value="auto">🎲 Abwechselnd</option>
+                <option value="cave">⛏️ Höhle mit Lava</option>
+                <option value="nether">🔥 Nether</option>
+                <option value="autumn">🍁 Oberwelt</option>
+                <option value="end">🌌 End</option>
+              </select>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Eigene Azure-App (optional)</h3>
+            <p class="hint">Emberleaf bringt seine eigene App-ID für den Microsoft-Login mit. Trag hier nur etwas ein, wenn du eine andere App nutzen willst.</p>
+            <div class="field">
+              <label for="set-azure">Azure Client-ID</label>
+              <input class="input" id="set-azure" autocomplete="off" placeholder="leer lassen = Emberleaf-App">
+            </div>
+          </div>
+          <div class="card">
+            <h3>Lagerfeuer (Freunde)</h3>
+            <p class="hint">Die Adresse deines Emberleaf-Freundeservers. Alle Freunde tragen hier dieselbe Adresse ein.</p>
+            <div class="field">
+              <label for="set-friends">Server-Adresse</label>
+              <input class="input" id="set-friends" autocomplete="off" placeholder="https://lagerfeuer.dein-name.workers.dev">
+            </div>
+          </div>
+          <div class="card" id="updates-card"></div>
+          <div class="card">
+            <h3>CurseForge</h3>
+            <p class="hint">Für die CurseForge-Suche brauchst du einen kostenlosen API-Schlüssel von console.curseforge.com.</p>
+            <div class="field">
+              <label for="set-cf">API-Schlüssel</label>
+              <input class="input" id="set-cf" type="password" autocomplete="off">
+            </div>
+          </div>
+          <div class="card">
+            <h3>Ordner</h3>
+            <p class="hint">Hier liegen Minecraft, Profile, Mods und deine Cosmetics.</p>
+            <button class="btn" id="open-data">Emberleaf-Ordner öffnen</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="modal-root"></div>
+  <div id="toasts" aria-live="polite"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

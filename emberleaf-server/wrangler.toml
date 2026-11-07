@@ -1,0 +1,13 @@
+# Nur für Weg B in ANLEITUNG.md (npx wrangler deploy)
+name = "lagerfeuer"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lagerfeuer"
+database_id = "HIER-DIE-ID-AUS-wrangler-d1-create-EINTRAGEN"
+
+[vars]
+# Wer Emberleaf-Updates an alle verteilen darf (dein Minecraft-Name)
+UPDATE_OWNER = "SenLxca"

@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Launcher: Build-Ausgaben (die exe, die Mod-jar und der Shader kommen als Release-Dateien auf GitHub)
+emberleaf/build/
+emberleaf/dist/
+emberleaf/*.spec
+emberleaf/build-last.log
+emberleaf/client-mod/
+emberleaf/packs/
+
+# Client-Mod: Gradle, Testwelt, lokaler JDK-Pfad
+emberleaf-mod/.gradle/
+emberleaf-mod/build/
+emberleaf-mod/run/
+emberleaf-mod/tools/jdk-path.txt
+# CC0-Lizenz aus der Fabric-Vorlage: gilt nicht für Emberleaf
+emberleaf-mod/LICENSE
+
+# lokal
+.claude/
+*.part
+*.log
+hs_err_*.log

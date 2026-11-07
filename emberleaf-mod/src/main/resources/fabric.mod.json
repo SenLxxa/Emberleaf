@@ -1,0 +1,30 @@
+{
+	"schemaVersion": 1,
+	"id": "emberleaf",
+	"version": "${version}",
+	"name": "Emberleaf Client",
+	"description": "Zeigt deine Emberleaf-Cosmetics im Spiel und bringt Komfort-Funktionen wie Zoom.",
+	"authors": [
+		"SenLxca"
+	],
+	"license": "All-Rights-Reserved",
+	"icon": "assets/emberleaf/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"net.emberleaf.client.EmberleafClient"
+		]
+	},
+	"mixins": [
+		{
+			"config": "emberleaf.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

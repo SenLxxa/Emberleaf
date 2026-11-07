@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<base href="/app/">
+<title>Lagerfeuer-App (Test)</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<!-- gleiche Oberfläche wie app/index.html; die App läuft hier gegen den echten Worker mit einer sql.js-Datenbank im Browser -->
+<div id="app" class="loading">
+  <header class="top">
+    <button class="icon-btn" id="back" hidden aria-label="Zurück">‹</button>
+    <div class="title"><h1 id="title">Lagerfeuer</h1><small id="subtitle"></small></div>
+    <div id="top-actions"></div>
+  </header>
+  <main id="view"></main>
+  <nav class="tabs" id="tabs" hidden>
+    <button data-tab="chats"><span class="tab-icon">💬</span><span>Chats</span><b class="dot" id="unread-dot" hidden></b></button>
+    <button data-tab="friends"><span class="tab-icon">🔥</span><span>Freunde</span><b class="dot" id="request-dot" hidden></b></button>
+    <button data-tab="party"><span class="tab-icon">🎉</span><span>Party</span><b class="dot" id="party-dot" hidden></b></button>
+    <button data-tab="me"><span class="tab-icon">🍁</span><span>Ich</span></button>
+  </nav>
+</div>
+<div id="sheet-backdrop" hidden></div>
+<section id="sheet" hidden></section>
+<div id="toast" role="status"></div>
+<div id="lightbox" hidden><img alt=""></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script type="module">
+import worker from "/worker.js";
+
+const SQL = await initSqlJs({ locateFile: (f) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}` });
+const db = new SQL.Database();
+class Stmt {
+  constructor(sql) { this.sql = sql; this.args = []; }
+  bind(...args) { this.args = args; return this; }
+  exec() {
+    const st = db.prepare(this.sql);
+    st.bind(this.args.map((a) => (typeof a === "boolean" ? Number(a) : a)));
+    const rows = [];
+    while (st.step()) rows.push(st.getAsObject());
+    st.free();
+    return rows;
+  }
+  async first() { return this.exec()[0] ?? null; }
+  async all() { return { results: this.exec() }; }
+  async run() { this.exec(); return { success: true }; }
+}
+const env = { TEST_MODE: "1", UPDATE_OWNER: "senlxca", DB: { prepare: (sql) => new Stmt(sql), batch: async (s) => s.map((x) => ({ results: x.exec() })) } };
+const realFetch = window.fetch.bind(window);
+window.fetch = (input, init) => {
+  const url = new URL(typeof input === "string" ? input : input.url, location.href);
+  if (url.pathname.startsWith("/v1/")) return worker.fetch(new Request(`https://lagerfeuer.test${url.pathname}${url.search}`, init), env);
+  return realFetch(input, init);
+};
+const call = async (method, path, body, token) => {
+  const headers = { "content-type": "application/json" };
+  if (token) headers.authorization = `Bearer ${token}`;
+  const res = await worker.fetch(new Request(`https://lagerfeuer.test${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }), env);
+  return res.json();
+};
+const login = async (name, ch) => (await call("POST", "/v1/auth", { name, serverId: "7e57" + ch.repeat(32) })).token;
+
+// Beispiel-Lagerfeuer: du (SenLxca) mit drei Freunden, Chats, Spiel, Gruppe, Party
+const A = "a".repeat(32), B = "b".repeat(32), C = "c".repeat(32), D = "d".repeat(32);
+const ta = await login("SenLxca", "a");
+const tb = await login("PerryDasHuhn", "b");
+const tc = await login("Lxca_Test", "c");
+const td = await login("Mia_Baut", "d");
+const te = await login("Neuling42", "e");
+for (const [t, name, other] of [[ta, "PerryDasHuhn", tb], [ta, "Lxca_Test", tc], [ta, "Mia_Baut", td]]) {
+  const r = await call("POST", "/v1/friends/add", { name }, t);
+  await call("POST", "/v1/friends/accept", { uuid: A }, other);
+}
+await call("POST", "/v1/friends/add", { name: "SenLxca" }, te);
+await call("POST", "/v1/sync", { online: true, server: "Einzelspieler", stats: { playtime: 39600, today: 2700, badges: ["alpha", "explorer", "nightowl"], contrail: "rose" } }, ta);
+await call("POST", "/v1/sync", { online: true, server: "eu8813304.g-portal.game", stats: { playtime: 181 * 3600, today: 5400, badges: ["alpha", "creator"], contrail: "gold" } }, tb);
+await call("POST", "/v1/sync", { online: false, stats: { playtime: 3 * 3600, badges: ["alpha"] } }, tc);
+await call("POST", "/v1/sync", { online: true, server: "mc.hypixel.net", stats: { playtime: 52 * 3600, badges: ["explorer"] } }, td);
+const dm = (await call("POST", "/v1/chat/send", { to: A, text: "Hey! Bist du heute Abend am Lagerfeuer? 🔥" }, tb)).chat;
+await call("POST", "/v1/chat/send", { chat: dm, text: "Klar, ab 19 Uhr bin ich da" }, ta);
+const q = await call("POST", "/v1/chat/send", { chat: dm, text: "Perfekt. Ich hab die neue Elytra-Farbe freigespielt: Gold!" }, tb);
+await call("POST", "/v1/chat/react", { message: q.message.id, emoji: "fire" }, ta);
+await call("POST", "/v1/chat/send", { chat: dm, kind: "invite", data: { server: "eu8813304.g-portal.game" }, text: "Komm rein, wir bauen am Hafen" }, tb);
+const g = await call("POST", "/v1/chat/game", { chat: dm, game: "ttt" }, tb);
+for (const [t, cell] of [[tb, 4], [ta, 0], [tb, 2]]) await call("POST", "/v1/chat/game/move", { message: g.message.id, cell }, t);
+await call("POST", "/v1/chat/send", { chat: dm, text: "Du bist dran 😄", reply: q.message.id }, tb);
+const group = (await call("POST", "/v1/chat/group", { name: "Die Bande", members: [B, C, D] }, ta)).chat;
+await call("POST", "/v1/chat/send", { chat: group, text: "Wer baut mit am Leuchtturm?" }, td);
+await call("POST", "/v1/chat/send", { chat: group, text: "Ich! Bring Glas mit" }, tc);
+const c4 = await call("POST", "/v1/chat/game", { chat: group, game: "c4" }, tc);
+for (const [t, col] of [[tc, 3], [td, 3], [tc, 4], [td, 2]]) await call("POST", "/v1/chat/game/move", { message: c4.message.id, cell: col }, t);
+await call("POST", "/v1/party/invite", { uuid: A }, tb);
+
+localStorage.setItem("lagerfeuer.token", ta);
+localStorage.setItem("lagerfeuer.me", JSON.stringify({ uuid: A, name: "SenLxca" }));
+localStorage.setItem("lagerfeuer.tab", new URLSearchParams(location.search).get("tab") || "chats");
+Object.defineProperty(Navigator.prototype, "serviceWorker", { get: () => ({ register: () => Promise.resolve() }) });
+window.__lagerfeuer = { call, ta, tb, tc, dm, group };
+await import("/app/app.js");
+</script>
+</body>
+</html>

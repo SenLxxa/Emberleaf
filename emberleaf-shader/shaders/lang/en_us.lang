@@ -1,0 +1,10 @@
+profile.SCHNELL=Fast
+profile.SCHOEN=Pretty
+profile.ULTRA=Ultra
+option.SHADOW_QUALITY=Shadow softness
+option.shadowMapResolution=Shadow resolution
+option.shadowDistance=Shadow distance
+option.BLOOM_STRENGTH=Bloom
+option.WARMTH=Warmth
+option.WAVING_PLANTS=Waving plants
+option.STARS=Stars & galaxy

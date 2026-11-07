@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Lagerfeuer-Test</title>
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 24px; background: #1b1310; color: #f6ead9; }
+  .ok { color: #9fe37a; } .fail { color: #ff8a7a; font-weight: bold; }
+  pre { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Emberleaf Lagerfeuer – Test</h1>
+<pre id="log">läuft …</pre>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script type="module">
+// Führt worker.js mit einer echten SQLite-Datenbank (sql.js) statt Cloudflare D1 aus.
+import worker from "../worker.js";
+
+const log = document.getElementById("log");
+const lines = [];
+let failures = 0;
+const out = (text, cls = "") => { lines.push(cls ? `<span class="${cls}">${text}</span>` : text); log.innerHTML = lines.join("\n"); };
+const check = (name, cond, extra = "") => { if (!cond) failures++; out(`${cond ? "✓" : "✗"} ${name}${extra ? " – " + extra : ""}`, cond ? "ok" : "fail"); };
+
+const SQL = await initSqlJs({ locateFile: (f) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}` });
+const db = new SQL.Database(); // absichtlich leer: der Worker muss die Tabellen selbst anlegen
+
+class Stmt {
+  constructor(sql) { this.sql = sql; this.args = []; }
+  bind(...args) { this.args = args; return this; }
+  exec() {
+    const st = db.prepare(this.sql);
+    st.bind(this.args.map((a) => (typeof a === "boolean" ? Number(a) : a)));
+    const rows = [];
+    while (st.step()) rows.push(st.getAsObject());
+    st.free();
+    return rows;
+  }
+  async first() { return this.exec()[0] ?? null; }
+  async all() { return { results: this.exec() }; }
+  async run() { this.exec(); return { success: true }; }
+}
+const env = { TEST_MODE: "1", UPDATE_OWNER: "senlxca", DB: { prepare: (sql) => new Stmt(sql), batch: async (stmts) => stmts.map((s) => ({ results: s.exec() })) } };
+
+async function call(method, path, body, token) {
+  const headers = { "content-type": "application/json" };
+  if (token) headers.authorization = `Bearer ${token}`;
+  const res = await worker.fetch(new Request(`https://lagerfeuer.test${path}`, {
+    method, headers, body: body === undefined ? undefined : (typeof body === "string" ? body : JSON.stringify(body)),
+  }), env);
+  return { status: res.status, data: await res.json() };
+}
+
+const A = { name: "SenLxca", uuid: "a".repeat(32) };
+const B = { name: "PerryDasHuhn", uuid: "b".repeat(32) };
+
+try {
+  check("health", (await call("GET", "/v1/health")).data.ok === true);
+  const tables = db.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")[0].values.map((v) => v[0]);
+  check("Tabellen selbst angelegt", ["players", "sessions", "friendships", "friend_requests", "releases", "release_chunks", "stats", "emotes", "chats",
+    "chat_members", "messages", "reactions", "images", "parties", "party_members", "party_invites", "pair_codes"].every((t) => tables.includes(t)), tables.join(", "));
+  check("ohne DB-Bindung: klare Meldung", (await worker.fetch(new Request("https://lagerfeuer.test/v1/health"), {})).status === 500);
+  check("ohne Anmeldung gesperrt", (await call("GET", "/v1/friends")).status === 401);
+  check("falsche Mojang-Prüfung abgelehnt", (await call("POST", "/v1/auth", { name: "x", serverId: "zz" })).status === 400);
+
+  const ra = await call("POST", "/v1/auth", { name: A.name, serverId: "7e57" + A.uuid });
+  const rb = await call("POST", "/v1/auth", { name: B.name, serverId: "7e57" + B.uuid });
+  check("Anmeldung A", ra.status === 200 && ra.data.uuid === A.uuid);
+  check("Anmeldung B", rb.status === 200 && rb.data.token.length > 20);
+  const ta = ra.data.token;
+  const tb = rb.data.token;
+  check("falscher Token abgelehnt", (await call("GET", "/v1/me", undefined, "nope")).status === 401);
+  check("/v1/me", (await call("GET", "/v1/me", undefined, ta)).data.name === A.name);
+
+  check("Fremden hinzufügen: 404", (await call("POST", "/v1/friends/add", { name: "Niemand" }, ta)).status === 404);
+  check("sich selbst hinzufügen: 400", (await call("POST", "/v1/friends/add", { name: A.name }, ta)).status === 400);
+  const req = await call("POST", "/v1/friends/add", { name: "perrydashuhn" }, ta);
+  check("Anfrage A → B (Groß/klein egal)", req.data.status === "requested");
+  const fb = await call("GET", "/v1/friends", undefined, tb);
+  check("B sieht eingehende Anfrage", fb.data.incoming.length === 1 && fb.data.incoming[0].uuid === A.uuid);
+  const fa = await call("GET", "/v1/friends", undefined, ta);
+  check("A sieht ausgehende Anfrage", fa.data.outgoing.length === 1);
+  check("B nimmt an", (await call("POST", "/v1/friends/accept", { uuid: A.uuid }, tb)).data.status === "friends");
+  check("doppelt annehmen: 404", (await call("POST", "/v1/friends/accept", { uuid: A.uuid }, tb)).status === 404);
+
+  check("Präsenz A", (await call("POST", "/v1/presence", { online: true, server: "eu8813304.g-portal.game" }, ta)).status === 200);
+  const fb2 = await call("GET", "/v1/friends", undefined, tb);
+  const friendA = fb2.data.friends[0];
+  check("B sieht A online auf dem Server", friendA && friendA.online && friendA.server === "eu8813304.g-portal.game");
+  check("keine offenen Anfragen mehr", fb2.data.incoming.length === 0 && fb2.data.outgoing.length === 0);
+
+  const outfit = { head: { id: "beanie", voxels: [[0, 8, 0, "#e8873a"]] } };
+  check("Outfit hochladen", (await call("PUT", "/v1/outfit", JSON.stringify(outfit), ta)).status === 200);
+  check("kaputtes Outfit abgelehnt", (await call("PUT", "/v1/outfit", "{nope", ta)).status === 400);
+  const got = await call("GET", `/v1/outfits?uuids=${A.uuid},${B.uuid},kaputt`, undefined, tb);
+  check("B lädt A's Outfit", got.data.outfits[A.uuid]?.items.head.id === "beanie" && !got.data.outfits[B.uuid]);
+
+  check("offline melden", (await call("POST", "/v1/presence", { online: false }, ta)).status === 200);
+  check("B sieht A offline", (await call("GET", "/v1/friends", undefined, tb)).data.friends[0].online === false);
+
+  check("A entfernt B", (await call("POST", "/v1/friends/remove", { uuid: B.uuid }, ta)).data.status === "removed");
+  check("Freundesliste leer", (await call("GET", "/v1/friends", undefined, tb)).data.friends.length === 0);
+
+  // Gegenseitige Anfrage wird sofort zur Freundschaft
+  await call("POST", "/v1/friends/add", { name: B.name }, ta);
+  const mutual = await call("POST", "/v1/friends/add", { name: A.name }, tb);
+  check("gegenseitige Anfrage = Freunde", mutual.data.status === "friends");
+  check("unbekannter Pfad: 404", (await call("GET", "/v1/gibtsnicht", undefined, ta)).status === 404);
+
+  // ---------- Sync: Spielzeit, Abzeichen, Kondensstreifen, Emotes ----------
+  const sa = await call("POST", "/v1/sync", { online: true, server: "play.test", nearby: [B.uuid], chatSince: -1,
+    stats: { playtime: 40000, today: 600, badges: ["alpha", "explorer"], contrail: "rose" } }, ta);
+  check("Sync A", sa.status === 200 && typeof sa.data.now === "number" && sa.data.chat.cursor === 0, JSON.stringify(sa.data).slice(0, 200));
+  const sb = await call("POST", "/v1/sync", { online: true, server: "play.test", nearby: [A.uuid], emote: { id: "emote-wave", elapsed: 300 },
+    stats: { playtime: 600 * 3600, badges: ["nightowl", "founder"], contrail: "rainbow" } }, tb);
+  check("B sieht A's Abzeichen (Gründer vom Server, 10 h, Freund)", JSON.stringify(sb.data.players[A.uuid]?.badges)
+    === JSON.stringify(["founder", "alpha", "h10", "friend", "explorer"]), JSON.stringify(sb.data.players[A.uuid]));
+  check("B sieht A's Kondensstreifen (Rosa ab 5 h)", sb.data.players[A.uuid]?.contrail === "rose");
+  const sa2 = await call("POST", "/v1/sync", { online: true, server: "play.test", nearby: [B.uuid] }, ta);
+  check("A sieht B winken", sa2.data.emotes[B.uuid]?.id === "emote-wave" && sa2.data.emotes[B.uuid].age >= 300);
+  check("Gründer-Abzeichen lässt sich nicht erschummeln", JSON.stringify(sa2.data.players[B.uuid]?.badges) === JSON.stringify(["h500", "friend", "nightowl"]),
+    JSON.stringify(sa2.data.players[B.uuid]));
+  await call("POST", "/v1/sync", { online: true, stats: { playtime: 700 * 3600, contrail: "rainbow" } }, tb);
+  const pb = await call("GET", "/v1/profile", undefined, tb);
+  check("Spielzeit wächst nicht schneller als die Uhr", pb.data.playtime >= 600 * 3600 && pb.data.playtime <= 600 * 3600 + 200, String(pb.data.playtime));
+  check("Profil eines Freundes", (await call("GET", `/v1/profile?uuid=${A.uuid}`, undefined, tb)).data.playtime === 40000);
+  await call("POST", "/v1/sync", { online: true, emote: null }, tb);
+  check("Emote endet", !(await call("POST", "/v1/sync", { online: true, server: "play.test", nearby: [B.uuid] }, ta)).data.emotes[B.uuid]);
+  const fbs = await call("GET", "/v1/friends", undefined, tb);
+  check("Freundesliste mit Spielzeit und Abzeichen", fbs.data.friends[0].playtime === 40000 && fbs.data.friends[0].badges.includes("founder")
+    && fbs.data.friends[0].server === "play.test" && fbs.data.me.badges.includes("h500"));
+
+  // ---------- Chat ----------
+  const C = { name: "Lxca_Test", uuid: "c".repeat(32) };
+  const tc = (await call("POST", "/v1/auth", { name: C.name, serverId: "7e57" + C.uuid })).data.token;
+  const dm1 = await call("POST", "/v1/chat/send", { to: B.uuid, text: "Hallo Perry!" }, ta);
+  const chatId = dm1.data.chat;
+  check("A schreibt B (Chat entsteht)", dm1.status === 200 && chatId === "d" + A.uuid + B.uuid && dm1.data.message.text === "Hallo Perry!");
+  const cb = await call("GET", "/v1/chats", undefined, tb);
+  check("B sieht den Chat mit 1 Ungelesenen", cb.data.chats[0]?.id === chatId && cb.data.chats[0].unread === 1 && cb.data.chats[0].name === A.name);
+  const first = await call("POST", "/v1/sync", { online: true, chatSince: -1 }, tb);
+  const cur = first.data.chat.cursor;
+  check("Sync liefert erst nur den Stand der Nachrichten", cur === dm1.data.message.id && first.data.chat.messages.length === 0);
+  check("ab 0 kommt auch die allererste Nachricht", (await call("POST", "/v1/sync", { online: true, chatSince: 0 }, tb)).data.chat.messages[0]?.id === dm1.data.message.id);
+  const dm2 = await call("POST", "/v1/chat/send", { chat: chatId, text: "Kommst du?" }, ta);
+  const sb2 = await call("POST", "/v1/sync", { online: true, chatSince: cur }, tb);
+  check("B bekommt die neue Nachricht im Sync", sb2.data.chat.messages.length === 1 && sb2.data.chat.messages[0].text === "Kommst du?"
+    && sb2.data.chat.messages[0].senderName === A.name && sb2.data.chat.unread === 2 && sb2.data.chat.cursor === dm2.data.message.id);
+  const r1 = await call("POST", "/v1/chat/send", { chat: chatId, text: "Gleich!", reply: dm2.data.message.id }, tb);
+  check("B antwortet mit Zitat", r1.status === 200 && r1.data.message.reply === null || r1.status === 200);
+  check("Antwort auf fremde Nachricht abgelehnt", (await call("POST", "/v1/chat/send", { chat: chatId, text: "x", reply: 999999 }, tb)).status === 400);
+  check("Reaktion setzen", (await call("POST", "/v1/chat/react", { message: r1.data.message.id, emoji: "heart" }, ta)).data.active === true);
+  check("unbekannte Reaktion abgelehnt", (await call("POST", "/v1/chat/react", { message: r1.data.message.id, emoji: "poop" }, ta)).status === 400);
+  const msgs = await call("GET", `/v1/chat/messages?chat=${chatId}`, undefined, ta);
+  const lastMsg = msgs.data.messages.at(-1);
+  check("Verlauf mit Zitat und Reaktion", msgs.data.messages.length === 3 && lastMsg.reply?.text === "Kommst du?" && lastMsg.reactions.heart?.[0] === A.uuid,
+    JSON.stringify(lastMsg));
+  check("eigene Nachricht gilt als gelesen", msgs.data.members.find((m) => m.uuid === B.uuid).read === r1.data.message.id);
+  check("gelesen markieren", (await call("POST", "/v1/chat/read", { chat: chatId, message: lastMsg.id }, ta)).status === 200);
+  check("dann nichts Ungelesenes", (await call("GET", "/v1/chats", undefined, ta)).data.chats[0].unread === 0);
+  check("Fremder kann den Chat nicht lesen", (await call("GET", `/v1/chat/messages?chat=${chatId}`, undefined, tc)).status === 404);
+  check("Nachrichten nur an Freunde", (await call("POST", "/v1/chat/send", { to: A.uuid, text: "hi" }, tc)).status === 403);
+  check("leere Nachricht abgelehnt", (await call("POST", "/v1/chat/send", { chat: chatId, text: "   " }, ta)).status === 400);
+  check("eigene Nachricht löschen", (await call("POST", "/v1/chat/delete", { message: dm1.data.message.id }, ta)).status === 200);
+  check("fremde Nachricht nicht löschen", (await call("POST", "/v1/chat/delete", { message: r1.data.message.id }, ta)).status === 403);
+  const inv = await call("POST", "/v1/chat/send", { chat: chatId, kind: "invite", data: { server: "eu8813304.g-portal.game" } }, ta);
+  check("Server-Einladung", inv.data.message.kind === "invite" && inv.data.message.data.server === "eu8813304.g-portal.game");
+  check("kaputte Adresse abgelehnt", (await call("POST", "/v1/chat/send", { chat: chatId, kind: "invite", data: { server: "a b<c>" } }, ta)).status === 400);
+
+  // Bilder
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...new Array(40).fill(7)]);
+  const upload = async (bytes, type, token = ta) => {
+    const res = await worker.fetch(new Request("https://lagerfeuer.test/v1/image", { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": type },
+      body: bytes }), env);
+    return { status: res.status, data: await res.json() };
+  };
+  const up = await upload(png, "image/png");
+  check("Bild hochladen", up.status === 200 && /^[0-9a-f]{32}$/.test(up.data.id));
+  check("Text als Bild abgelehnt", (await upload(new TextEncoder().encode("<script>alert(1)<\/script>xxxxxxxx"), "image/png")).status === 400);
+  check("falscher Typ abgelehnt", (await upload(png, "text/html")).status === 415);
+  check("Bild senden", (await call("POST", "/v1/chat/send", { chat: chatId, kind: "image", data: { image: up.data.id, w: 4, h: 4 } }, ta)).status === 200);
+  check("fremdes Bild nicht senden", (await call("POST", "/v1/chat/send", { chat: chatId, kind: "image", data: { image: up.data.id } }, tb)).status === 400);
+  const img = await worker.fetch(new Request(`https://lagerfeuer.test/v1/image/${up.data.id}`), env);
+  check("Bild abrufen", img.status === 200 && img.headers.get("content-type") === "image/png" && (await img.arrayBuffer()).byteLength === png.length);
+
+  // Minispiele
+  const ttt = await call("POST", "/v1/chat/game", { chat: chatId, game: "ttt" }, ta);
+  const gid = ttt.data.message.id;
+  check("Tic-Tac-Toe starten", ttt.status === 200 && ttt.data.message.data.players[1] === B.uuid);
+  check("B ist nicht dran", (await call("POST", "/v1/chat/game/move", { message: gid, cell: 4 }, tb)).status === 400);
+  let mv;
+  for (const [token, cell] of [[ta, 0], [tb, 3], [ta, 1], [tb, 4], [ta, 2]]) mv = await call("POST", "/v1/chat/game/move", { message: gid, cell }, token);
+  check("A gewinnt Tic-Tac-Toe", mv.data.message?.data.winner === A.uuid && mv.data.message.data.board === "xxxoo....", JSON.stringify(mv.data));
+  check("nach dem Sieg kein Zug mehr", (await call("POST", "/v1/chat/game/move", { message: gid, cell: 8 }, tb)).status === 400);
+  const c4 = (await call("POST", "/v1/chat/game", { chat: chatId, game: "c4" }, ta)).data.message.id;
+  for (const [token, col] of [[ta, 0], [tb, 1], [ta, 0], [tb, 1], [ta, 0], [tb, 1], [ta, 0]]) mv = await call("POST", "/v1/chat/game/move", { message: c4, cell: col }, token);
+  check("A gewinnt Vier gewinnt (senkrecht)", mv.data.message?.data.winner === A.uuid, JSON.stringify(mv.data));
+  check("Fremder kann nicht mitspielen", (await call("POST", "/v1/chat/game/move", { message: c4, cell: 3 }, tc)).status === 404);
+
+  // Gruppen
+  await call("POST", "/v1/friends/add", { name: C.name }, ta);
+  await call("POST", "/v1/friends/accept", { uuid: A.uuid }, tc);
+  check("Gruppe nur mit Freunden", (await call("POST", "/v1/chat/group", { name: "Bande", members: [B.uuid, C.uuid] }, tb)).status === 403);
+  const grp = await call("POST", "/v1/chat/group", { name: "  Die   Bande ", members: [B.uuid, C.uuid] }, ta);
+  check("Gruppe erstellen", grp.status === 200 && grp.data.chat.startsWith("g"));
+  const gmsgs = await call("GET", `/v1/chat/messages?chat=${grp.data.chat}`, undefined, tc);
+  check("C ist in der Gruppe und sieht die Erstellung", gmsgs.data.members.length === 3 && gmsgs.data.chat.name === "Die Bande"
+    && gmsgs.data.messages[0].kind === "system");
+  check("Gruppe umbenennen", (await call("POST", "/v1/chat/group/rename", { chat: grp.data.chat, name: "Lagerbande" }, tb)).status === 200);
+  check("C verlässt die Gruppe", (await call("POST", "/v1/chat/group/leave", { chat: grp.data.chat }, tc)).status === 200);
+  const gm2 = await call("GET", `/v1/chat/messages?chat=${grp.data.chat}`, undefined, ta);
+  check("noch zwei Mitglieder, Name geändert", gm2.data.members.length === 2 && gm2.data.chat.name === "Lagerbande");
+  check("C sieht die Gruppe nicht mehr", (await call("GET", `/v1/chat/messages?chat=${grp.data.chat}`, undefined, tc)).status === 404);
+  await call("POST", "/v1/chat/group/leave", { chat: grp.data.chat }, ta);
+  await call("POST", "/v1/chat/group/leave", { chat: grp.data.chat }, tb);
+  check("leere Gruppe wird gelöscht", db.exec(`SELECT COUNT(*) FROM chats WHERE id = '${grp.data.chat}'`)[0].values[0][0] === 0);
+
+  // Party
+  check("Party: Fremde nicht einladen", (await call("POST", "/v1/party/invite", { uuid: B.uuid }, tc)).status === 403);
+  const pinv = await call("POST", "/v1/party/invite", { uuid: B.uuid }, ta);
+  check("Einladen startet die Party", pinv.data.status === "invited");
+  const bsync = await call("POST", "/v1/sync", { online: true }, tb);
+  check("B sieht die Einladung im Sync", bsync.data.partyInvites.length === 1 && bsync.data.partyInvites[0].leaderName === A.name);
+  const joinedParty = await call("POST", "/v1/party/join", { party: pinv.data.party }, tb);
+  check("B tritt bei", joinedParty.data.party?.members.length === 2 && joinedParty.data.party.leader === A.uuid, JSON.stringify(joinedParty.data));
+  check("Einladung verbraucht", (await call("POST", "/v1/party/join", { party: pinv.data.party }, tb)).status === 404);
+  const asyncParty = await call("POST", "/v1/sync", { online: true, server: "mc.hypixel.net" }, ta);
+  const bParty = await call("POST", "/v1/sync", { online: true }, tb);
+  check("B sieht, wo der Leiter spielt", bParty.data.party?.members.find((m) => m.uuid === A.uuid)?.server === "mc.hypixel.net", JSON.stringify(asyncParty.data.party));
+  const pchat = (await call("GET", "/v1/chats", undefined, tb)).data.chats.find((c) => c.kind === "party");
+  check("Party-Chat für B", pchat && pchat.members.length === 2);
+  check("nur der Leiter kickt", (await call("POST", "/v1/party/kick", { uuid: A.uuid }, tb)).status === 403);
+  const left = await call("POST", "/v1/party/leave", undefined, ta);
+  check("Leiter geht: B wird Leiter", left.data.party === null);
+  check("B ist jetzt Leiter", (await call("GET", "/v1/party", undefined, tb)).data.party?.leader === B.uuid);
+  await call("POST", "/v1/party/leave", undefined, tb);
+  check("leere Party ist weg", db.exec("SELECT COUNT(*) FROM parties")[0].values[0][0] === 0 && db.exec("SELECT COUNT(*) FROM chats WHERE kind = 'party'")[0].values[0][0] === 0);
+
+  // Handy koppeln
+  const pairing = await call("POST", "/v1/pair/start", {}, ta);
+  check("Kopplungscode", /^[A-Z2-9]{6}$/.test(pairing.data.code) && pairing.data.url === `https://lagerfeuer.test/app#pair=${pairing.data.code}`);
+  check("falscher Code", (await call("POST", "/v1/pair/claim", { code: "ZZZZZZ" })).status === 404);
+  const claim = await call("POST", "/v1/pair/claim", { code: pairing.data.code.toLowerCase().replace(/(...)/, "$1-") });
+  check("Handy koppelt sich (mit Strich, klein geschrieben)", claim.status === 200 && claim.data.uuid === A.uuid && claim.data.name === A.name);
+  check("Code gilt nur einmal", (await call("POST", "/v1/pair/claim", { code: pairing.data.code })).status === 404);
+  check("Handy ist angemeldet", (await call("GET", "/v1/me", undefined, claim.data.token)).data.name === A.name);
+  check("Abmelden", (await call("POST", "/v1/logout", undefined, claim.data.token)).status === 200);
+  check("danach abgemeldet", (await call("GET", "/v1/me", undefined, claim.data.token)).status === 401);
+
+  // Die App selbst
+  const page = await worker.fetch(new Request("https://lagerfeuer.test/app/"), {});
+  const pageText = await page.text();
+  check("App ohne Datenbank erreichbar", page.status === 200 && pageText.includes("app.js") && page.headers.get("content-security-policy").includes("script-src 'self'"));
+  check("Weiterleitung auf /app/", (await worker.fetch(new Request("https://lagerfeuer.test/"), {})).status === 302);
+  const icon = await worker.fetch(new Request("https://lagerfeuer.test/app/icon-192.png"), {});
+  const iconBytes = new Uint8Array(await icon.arrayBuffer());
+  check("App-Icon ist ein PNG", icon.headers.get("content-type") === "image/png" && iconBytes[1] === 0x50 && iconBytes.length > 1000);
+  const manifest = await (await worker.fetch(new Request("https://lagerfeuer.test/app/manifest.webmanifest"), {})).json();
+  check("Manifest", manifest.start_url === "/app/" && manifest.icons.length === 3);
+  check("Abzeichen-Bild", (await worker.fetch(new Request("https://lagerfeuer.test/app/badges/founder.png"), {})).status === 200);
+  check("unbekannte App-Datei: 404", (await worker.fetch(new Request("https://lagerfeuer.test/app/gibtsnicht.js"), {})).status === 404);
+
+  // ---------- Client-Updates ----------
+  const none = await call("GET", "/v1/update", undefined, tb);
+  check("noch kein Update", none.status === 200 && none.data.release === null && none.data.owner === false);
+  check("A ist Besitzer", (await call("GET", "/v1/update", undefined, ta)).data.owner === true);
+  const bytes = new Uint8Array(512 * 1024 + 1000).map((_, i) => (i * 7) % 251);
+  const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const files = [{ name: "emberleaf-client-1.0.1.jar", kind: "mod", version: "1.0.1", sha256: digest, size: bytes.length }];
+  check("Freund darf kein Update verteilen", (await call("POST", "/v1/update/begin", { files }, tb)).status === 403);
+  check("kaputte Datei abgelehnt", (await call("POST", "/v1/update/begin", { files: [{ ...files[0], name: "../x.exe" }] }, ta)).status === 400);
+  const begin = await call("POST", "/v1/update/begin", { notes: "Neue Insel", files }, ta);
+  check("Update anlegen", begin.status === 200 && begin.data.chunkBytes === 512 * 1024);
+  const rid = begin.data.id;
+  const put = async (part, data, token = ta) => {
+    const res = await worker.fetch(new Request(`https://lagerfeuer.test/v1/update/chunk?release=${rid}&file=${files[0].name}&part=${part}`, {
+      method: "PUT", headers: { authorization: `Bearer ${token}` }, body: data }), env);
+    return res.status;
+  };
+  check("Stück 0 hochladen", (await put(0, bytes.slice(0, 512 * 1024))) === 200);
+  check("falsche Stückgröße abgelehnt", (await put(1, bytes.slice(0, 10))) === 400);
+  check("unvollständig: nicht veröffentlichen", (await call("POST", "/v1/update/publish", { id: rid }, ta)).status === 400);
+  check("noch unsichtbar für Freunde", (await call("GET", "/v1/update", undefined, tb)).data.release === null);
+  check("Stück 1 hochladen", (await put(1, bytes.slice(512 * 1024))) === 200);
+  check("veröffentlichen", (await call("POST", "/v1/update/publish", { id: rid }, ta)).status === 200);
+  const latest = await call("GET", "/v1/update", undefined, tb);
+  check("B sieht das Update", latest.data.release?.id === rid && latest.data.release.files[0].sha256 === digest);
+  const chunks = [];
+  for (let p = 0; p < 2; p++) {
+    const res = await worker.fetch(new Request(`https://lagerfeuer.test/v1/update/file?release=${rid}&file=${files[0].name}&part=${p}`, {
+      headers: { authorization: `Bearer ${tb}` } }), env);
+    chunks.push(new Uint8Array(await res.arrayBuffer()));
+  }
+  const joined = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let o = 0;
+  for (const c of chunks) { joined.set(c, o); o += c.length; }
+  const back = [...new Uint8Array(await crypto.subtle.digest("SHA-256", joined))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  check("B lädt die Datei identisch herunter", back === digest);
+  check("veröffentlicht: keine Stücke mehr änderbar", (await put(0, bytes.slice(0, 512 * 1024))) === 400);
+  for (let i = 0; i < 3; i++) {
+    const b2 = await call("POST", "/v1/update/begin", { files: [{ ...files[0], size: 5, sha256: "0".repeat(64) }] }, ta);
+    await worker.fetch(new Request(`https://lagerfeuer.test/v1/update/chunk?release=${b2.data.id}&file=${files[0].name}&part=0`, {
+      method: "PUT", headers: { authorization: `Bearer ${ta}` }, body: new Uint8Array(5) }), env);
+    await call("POST", "/v1/update/publish", { id: b2.data.id }, ta);
+    await new Promise((r) => setTimeout(r, 5));
+  }
+  check("alte Updates werden aufgeräumt", db.exec("SELECT COUNT(*) FROM releases")[0].values[0][0] === 2);
+} catch (e) {
+  failures++;
+  out("Absturz: " + e.stack, "fail");
+}
+out(failures ? `\n${failures} Test(s) fehlgeschlagen` : "\nALLE TESTS BESTANDEN", failures ? "fail" : "ok");
+document.title = failures ? "FAIL" : "PASS";
+</script>
+</body>
+</html>

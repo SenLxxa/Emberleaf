@@ -1,0 +1,10 @@
+Emberleaf Glut – ein gemütlicher Shader für Emberleaf (Iris, Minecraft 26.3)
+
+- weiche Schatten von Sonne und Mond
+- warmes, oranges Fackel- und Laternenlicht, leuchtende Lava und Glowstone (Bloom)
+- Wasser mit Wellen, Himmelsspiegelung und Sonnenglitzern
+- goldene Sonnenuntergänge, Sternenhimmel mit Milchstraße
+- wehende Blätter, Gräser und Blumen
+- läuft flüssig auf Mittelklasse-Grafikkarten (z.B. GTX 1070); Profile: Schnell, Schön, Ultra
+
+Einstellungen: Optionen → Grafik → Shader-Pakete → Emberleaf Glut → Shader-Einstellungen.

@@ -1,0 +1,33 @@
+{
+	"required": true,
+	"package": "net.emberleaf.client.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"CameraMixin",
+		"CapeLayerMixin",
+		"AttackMixin",
+		"BossHealthOverlayMixin",
+		"ChatComponentMixin",
+		"ChatListenerMixin",
+		"EntityRendererNameMixin",
+		"EntityTurnMixin",
+		"EquipmentLayerRendererMixin",
+		"FirstPersonHandsMixin",
+		"LivingEntityRendererMixin",
+		"PauseScreenAccessor",
+		"WaterFogMixin",
+		"GuiMixin",
+		"HitParticlesMixin",
+		"LightmapMixin",
+		"LocalPlayerMixin",
+		"MouseHandlerMixin",
+		"PlayerModelMixin",
+		"PlayerSkinMixin",
+		"ScreenPanoramaMixin",
+		"SpecialModelWrapperMixin",
+		"WingsLayerMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

@@ -1,0 +1,50 @@
+[
+ {
+  "id": "beanie",
+  "name": "Strickmütze",
+  "category": "head",
+  "file": "beanie"
+ },
+ {
+  "id": "bandana",
+  "name": "Bandana",
+  "category": "head",
+  "file": "bandana"
+ },
+ {
+  "id": "foxears",
+  "name": "Fuchsohren",
+  "category": "head",
+  "file": "fox_ears"
+ },
+ {
+  "id": "leafwings",
+  "name": "Herbstblatt-Flügel",
+  "category": "wings",
+  "file": "leaf_wings"
+ },
+ {
+  "id": "dragonwings",
+  "name": "Drachenflügel",
+  "category": "wings",
+  "file": "dragon_wings"
+ },
+ {
+  "id": "embercape",
+  "name": "Glut-Cape",
+  "category": "cape",
+  "file": "ember_cape"
+ },
+ {
+  "id": "backpack",
+  "name": "Wanderrucksack",
+  "category": "body",
+  "file": "backpack"
+ },
+ {
+  "id": "foxpet",
+  "name": "Fuchs",
+  "category": "pet",
+  "file": "fox_pet"
+ }
+]

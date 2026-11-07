@@ -1,0 +1,16 @@
+{
+	"schemaVersion": 1,
+	"id": "emberleaf-gametest",
+	"version": "1.0.0",
+	"name": "Emberleaf Gametest",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": [
+			"net.emberleaf.gametest.FeaturesTest"
+		]
+	},
+	"depends": {
+		"emberleaf": "*",
+		"fabric-client-gametest-api-v1": "*"
+	}
+}
