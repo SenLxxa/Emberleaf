@@ -10,7 +10,7 @@ from backend import bbmodel  # noqa: E402
 MODELS = ROOT.parent / "emberleaf/ui/assets/models"
 OUT = ROOT / "src/gametest/resources/emberleaf-test"
 OUTFITS = {
-    "outfit-a": {"head": "beanie", "wings": "leaf_wings", "cape": "ember_cape", "pet": "fox_pet"},
+    "outfit-a": {"head": "beanie", "wings": "leaf_wings", "cape": "phoenixschwinge", "pet": "eternal_lichtgeist"},
     "outfit-b": {"head": "fox_ears", "wings": "dragon_wings", "body": "backpack"},
 }
 
