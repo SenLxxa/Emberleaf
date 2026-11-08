@@ -31,7 +31,7 @@ public final class Emotes {
 	public static final String[][] ALL = {
 		{"emote-wave", "Winken"}, {"emote-cheer", "Jubeln"}, {"emote-dance", "Tanzen"}, {"emote-clap", "Klatschen"},
 		{"emote-jump", "Springen"}, {"emote-spin", "Drehen"}, {"emote-nod", "Nicken"}, {"emote-facepalm", "Facepalm"},
-		{"emote-run", "Rennen"}, {"emote-fly", "Fliegen"}, {"emote-swim", "Schwimmen"}, {"emote-sneak", "Schleichen"}};
+		{"emote-run", "Rennen"}, {"emote-fly", "Fliegen"}, {"emote-swim", "Schwimmen"}, {"emote-sneak", "Schleichen"}, {"emote-float", "Schweben"}};
 	private static boolean wasDown;
 	private static long pressedAt;
 	private static boolean wheelOpened;
@@ -234,6 +234,20 @@ public final class Emotes {
 				m.leftArm.y = lerp(m.leftArm.y, 5.2F, ease);
 				m.rightArm.xRot = lerp(m.rightArm.xRot, 0.4F, ease);
 				m.leftArm.xRot = lerp(m.leftArm.xRot, 0.4F, ease);
+			}
+			case "emote-float" -> {
+				// Eternal: langsam abheben und sanft auf und ab schweben, Arme leicht ausgebreitet
+				float s = t * 2.2F;
+				bob = 5 + Mth.sin(s) * 1.2F;
+				m.leftArm.xRot = lerp(m.leftArm.xRot, -0.2F, ease);
+				m.rightArm.xRot = lerp(m.rightArm.xRot, -0.2F, ease);
+				m.leftArm.zRot = lerp(m.leftArm.zRot, -(0.45F + Mth.sin(s) * 0.12F), ease);
+				m.rightArm.zRot = lerp(m.rightArm.zRot, 0.45F + Mth.sin(s) * 0.12F, ease);
+				m.leftLeg.xRot = lerp(m.leftLeg.xRot, -Mth.sin(t * 1.6F) * 0.12F, ease);
+				m.rightLeg.xRot = lerp(m.rightLeg.xRot, Mth.sin(t * 1.6F) * 0.12F, ease);
+				m.leftLeg.zRot = lerp(m.leftLeg.zRot, -0.06F, ease);
+				m.rightLeg.zRot = lerp(m.rightLeg.zRot, 0.06F, ease);
+				m.head.xRot = lerp(m.head.xRot, -0.15F, ease);
 			}
 			default -> {
 				return;
