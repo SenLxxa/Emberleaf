@@ -268,15 +268,6 @@ def dragon_wings():
     m.save("dragon_wings")
 
 
-def ember_cape():
-    m = Model("Glut-Cape")
-    m.group("cape", [0, 24, 2.2])
-    m.cube("cape", [-5, 7.5, 2.2], [5, 24, 3.2], fabric("#5a1a22", "#2e0c12", trim="#e8a23a", embers=True), name="cloth")
-    m.group("cape_glow", [0, 24, 2.2], "cape")
-    m.cube("cape_glow", [-3, 12, 3.25], [3, 18, 3.35], solid("#ff9a3c", "#ffd36b", 0.2), name="emblem")
-    m.save("ember_cape")
-
-
 def backpack():
     m = Model("Wanderrucksack")
     m.group("pack", [0, 18, 2])
@@ -290,49 +281,25 @@ def backpack():
     m.save("backpack")
 
 
-def fox_pet():
-    m = Model("Fuchs-Pet")
-    m.group("pet", [0, 0, 0])
-    orange = fur("#e0782e", "#f29a44", "#b85a1e")
-    cream = fur("#f4e3c3", "#ffffff", "#d8c8a8")
-    dark = fur("#2a1a14", "#3a2a20", "#1a100a")
-    m.group("body", [0, 5, 0], "pet")
-    m.cube("body", [-2.5, 3.5, -4.5], [2.5, 7.5, 4.5], orange, name="torso")
-    m.cube("body", [-2.0, 3.3, -4.0], [2.0, 4.5, 2.5], cream, name="belly")
-    m.group("head", [0, 7, -4.5], "body")
-    m.cube("head", [-3, 5.5, -9], [3, 10.5, -4], orange, name="skull")
-    m.cube("head", [-1.5, 5.5, -11], [1.5, 8, -9], cream, name="snout")
-    m.cube("head", [-0.6, 7.2, -11.4], [0.6, 8.2, -11], dark, name="nose")
-    for sx in (-1, 1):
-        m.group(f"ear_{'left' if sx < 0 else 'right'}", [sx * 1.8, 10.5, -6.5], "head")
-        m.cube(f"ear_{'left' if sx < 0 else 'right'}", [sx * 1.8 - 1, 10.5, -7.3], [sx * 1.8 + 1, 13, -5.8], orange, name="ear")
-    m.group("tail", [0, 6.5, 4.5], "body")
-    m.cube("tail", [-1.8, 4.5, 4.5], [1.8, 8, 11], orange, name="tail", origin=[0, 6.5, 4.5], rotation=(-20, 0, 0))
-    m.cube("tail", [-1.9, 4.4, 10], [1.9, 8.1, 12.5], cream, name="tip", origin=[0, 6.5, 4.5], rotation=(-20, 0, 0))
-    for name, x, z in (("leg_front_left", -1.5, -3), ("leg_front_right", 1.5, -3), ("leg_back_left", -1.5, 3), ("leg_back_right", 1.5, 3)):
-        m.group(name, [x, 4, z], "body")
-        m.cube(name, [x - 0.9, 0, z - 0.9], [x + 0.9, 4, z + 0.9], orange, name="leg")
-        m.cube(name, [x - 0.95, 0, z - 0.95], [x + 0.95, 1.2, z + 0.95], dark, name="paw")
-    m.save("fox_pet")
-
-
 CATALOG = [
     {"id": "beanie", "name": "Strickmütze", "category": "head", "file": "beanie"},
     {"id": "bandana", "name": "Bandana", "category": "head", "file": "bandana"},
     {"id": "foxears", "name": "Fuchsohren", "category": "head", "file": "fox_ears"},
     {"id": "leafwings", "name": "Herbstblatt-Flügel", "category": "wings", "file": "leaf_wings"},
     {"id": "dragonwings", "name": "Drachenflügel", "category": "wings", "file": "dragon_wings"},
-    {"id": "embercape", "name": "Glut-Cape", "category": "cape", "file": "ember_cape"},
     {"id": "backpack", "name": "Wanderrucksack", "category": "body", "file": "backpack"},
-    {"id": "foxpet", "name": "Fuchs", "category": "pet", "file": "fox_pet"},
 ]
 
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    for fn in (beanie, bandana, fox_ears, leaf_wings, dragon_wings, ember_cape, backpack, fox_pet):
+    for fn in (beanie, bandana, fox_ears, leaf_wings, dragon_wings, backpack):
         fn()
-    (OUT / "catalog.json").write_text(json.dumps(CATALOG, ensure_ascii=False, indent=1), encoding="utf-8")
+    # Capes, Eternal-Sachen usw. sind in Blockbench gebaut und stehen nur in catalog.json: die bleiben erhalten
+    path = OUT / "catalog.json"
+    ours = {c["id"] for c in CATALOG}
+    kept = [c for c in json.loads(path.read_text(encoding="utf-8")) if c["id"] not in ours] if path.is_file() else []
+    path.write_text(json.dumps(CATALOG + kept, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     for p in sorted(OUT.glob("*.bbmodel")):
         print(f"{p.name}: {p.stat().st_size // 1024} KB")
 
