@@ -866,10 +866,15 @@ export class ThumbnailRenderer {
     const frame = FRAMING[item.category];
     const pet = outfit.parts.pet?.group;
     if (pet) {
-      // Kamera auf das Pet richten, die Figur steht angeschnitten daneben
-      const target = pet.position.clone().add({ x: 0, y: 4, z: 0 });
-      viewer.camera.position.set(target.x + 20, target.y + 9, target.z + 30);
-      viewer.camera.lookAt(target.x - 3, target.y, target.z);
+      // Kamera auf das Pet richten, nach seiner echten Größe (kleine Katze bis Drache, am Boden oder schwebend);
+      // die Figur steht angeschnitten daneben
+      pet.updateWorldMatrix(true, true);
+      const box = new THREE.Box3().setFromObject(pet);
+      const center = box.isEmpty() ? pet.getWorldPosition(new THREE.Vector3()) : box.getCenter(new THREE.Vector3());
+      const radius = box.isEmpty() ? 8 : Math.max(5, box.getSize(new THREE.Vector3()).length() / 2);
+      const distance = (radius / Math.sin(THREE.MathUtils.degToRad(viewer.camera.fov) / 2)) * 0.95;
+      viewer.camera.position.copy(center).addScaledVector(new THREE.Vector3(0.55, 0.3, 0.78).normalize(), distance);
+      viewer.camera.lookAt(center);
     } else {
       viewer.camera.position.set(...frame.pos);
       viewer.camera.lookAt(...frame.target);
