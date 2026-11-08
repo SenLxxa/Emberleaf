@@ -43,10 +43,15 @@ class Stmt {
 }
 // Workers KV nachgebaut: Werte als Bytes, lesen auch als Stream
 const kv = new Map();
+const kvMeta = new Map();
 const FILES = {
-  async put(key, value) { kv.set(key, new Uint8Array(value instanceof ArrayBuffer ? value : await new Response(value).arrayBuffer())); },
+  async put(key, value, opts) {
+    kv.set(key, new Uint8Array(value instanceof ArrayBuffer ? value : await new Response(value).arrayBuffer()));
+    if (opts?.metadata) kvMeta.set(key, opts.metadata);
+  },
   async get(key, opts) { const v = kv.get(key); if (!v) return null; return opts?.type === "stream" ? new Blob([v]).stream() : v; },
-  async delete(key) { kv.delete(key); },
+  async getWithMetadata(key, opts) { return { value: await this.get(key, opts), metadata: kvMeta.get(key) ?? null }; },
+  async delete(key) { kv.delete(key); kvMeta.delete(key); },
 };
 const env = { TEST_MODE: "1", UPDATE_OWNER: "senlxca", FILES, DB: { prepare: (sql) => new Stmt(sql), batch: async (stmts) => stmts.map((s) => ({ results: s.exec() })) } };
 
@@ -265,12 +270,20 @@ try {
   const homeText = await home.text();
   check("Webseite unter /", home.status === 200 && homeText.includes("Emberleaf herunterladen") && home.headers.get("content-security-policy").includes("script-src 'self'"));
   check("Upload-Seite", (await worker.fetch(new Request("https://lagerfeuer.test/upload"), {})).status === 200);
-  const logo = await worker.fetch(new Request("https://lagerfeuer.test/s/img/logo.webp"), {});
+  const logo = await worker.fetch(new Request("https://lagerfeuer.test/s/img/logo.webp"), env);
   const logoBytes = new Uint8Array(await logo.arrayBuffer());
   check("Logo ist ein WebP", logo.headers.get("content-type") === "image/webp" && String.fromCharCode(...logoBytes.slice(8, 12)) === "WEBP");
   check("Schrift", (await worker.fetch(new Request("https://lagerfeuer.test/s/fonts/nunito.woff2"), {})).headers.get("content-type") === "font/woff2");
   check("Webseiten-Skript", (await (await worker.fetch(new Request("https://lagerfeuer.test/s/site.js"), {})).text()).includes("zoomFrame"));
   check("unbekannte Seiten-Datei: 404", (await worker.fetch(new Request("https://lagerfeuer.test/s/gibtsnicht.js"), {})).status === 404);
+  // große Bilder kommen aus KV (media/<name>), mit ?v= ein Jahr im Browser-Cache
+  check("Startseite verweist auf versionierte Bilder", /\/m\/bg-sunset\.webp\?v=[0-9a-f]{10}/.test(homeText));
+  await FILES.put("media/test-bild.webp", new Uint8Array([82, 73, 70, 70]).buffer, { metadata: { type: "image/webp", hash: "x" } });
+  const media = await worker.fetch(new Request("https://lagerfeuer.test/m/test-bild.webp?v=abc"), env);
+  check("Bild aus KV", media.status === 200 && media.headers.get("content-type") === "image/webp" && media.headers.get("cache-control").includes("immutable")
+    && (await media.arrayBuffer()).byteLength === 4);
+  check("fehlendes Bild: 404", (await worker.fetch(new Request("https://lagerfeuer.test/m/gibtsnicht.webp"), env)).status === 404);
+  check("komischer Bildname: 404", (await worker.fetch(new Request("https://lagerfeuer.test/m/..%2Fsecret.webp"), env)).status === 404);
   const icon = await worker.fetch(new Request("https://lagerfeuer.test/app/icon-192.png"), {});
   const iconBytes = new Uint8Array(await icon.arrayBuffer());
   check("App-Icon ist ein PNG", icon.headers.get("content-type") === "image/png" && iconBytes[1] === 0x50 && iconBytes.length > 1000);

@@ -19,6 +19,7 @@ import net.minecraft.client.CameraType;
 public class BlockbenchCosmeticsTest implements FabricClientGameTest {
 	@Override
 	public void runTest(ClientGameTestContext context) {
+		if (Only.skip("blockbench")) return;
 		Path dir;
 		try {
 			dir = Files.createTempDirectory("emberleaf-bbmodel-test");

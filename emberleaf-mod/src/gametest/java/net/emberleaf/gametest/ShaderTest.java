@@ -18,6 +18,7 @@ import net.minecraft.client.CameraType;
 public class ShaderTest implements FabricClientGameTest {
 	@Override
 	public void runTest(ClientGameTestContext context) {
+		if (Only.skip("shader")) return;
 		if (!FabricLoader.getInstance().isModLoaded("iris")) {
 			System.out.println("[Emberleaf] Iris fehlt im Test-Client, Shader-Test übersprungen");
 			return;

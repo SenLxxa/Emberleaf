@@ -25,6 +25,7 @@ import net.minecraft.world.item.Items;
 public class CosmeticsScreenshotTest implements FabricClientGameTest {
 	@Override
 	public void runTest(ClientGameTestContext context) {
+		if (Only.skip("cosmetics")) return;
 		Path dir = writeTestOutfit();
 		System.setProperty("emberleaf.dataDir", dir.toString());
 

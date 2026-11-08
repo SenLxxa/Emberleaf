@@ -11,6 +11,7 @@ import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 public class MainMenuScreenshotTest implements FabricClientGameTest {
 	@Override
 	public void runTest(ClientGameTestContext context) {
+		if (Only.skip("menu")) return;
 		context.waitFor(mc -> mc.gui.screen() instanceof EmberleafTitleScreen, 600);
 		System.setProperty("emberleaf.menuPhase", "sunset");
 		for (String scene : new String[] {"cave", "nether", "end", "island"}) {

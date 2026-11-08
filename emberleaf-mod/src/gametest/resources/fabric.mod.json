@@ -11,7 +11,8 @@
 			"net.emberleaf.gametest.CosmeticsScreenshotTest",
 			"net.emberleaf.gametest.TexturePackTest",
 			"net.emberleaf.gametest.ShaderTest",
-			"net.emberleaf.gametest.FeaturesTest"
+			"net.emberleaf.gametest.FeaturesTest",
+			"net.emberleaf.gametest.WebsiteShotsTest"
 		]
 	},
 	"depends": {

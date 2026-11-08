@@ -14,6 +14,8 @@ binding = "FILES"
 id = "5da3afcddd35444d9ccd8ad95b095ad4"
 
 [vars]
+# Azure-App "Emberleaf" (öffentliche ID, kein Geheimnis): Anmelden mit Microsoft auf der Webseite
+MS_CLIENT_ID = "c921157f-fcc0-47b6-9eb0-ec3eaa8c6d76"
 # Wer auf der Webseite Updates hochladen darf: die feste Minecraft-ID (UUID) von SenLxca.
 # Die ID bleibt gleich, auch wenn sich der Name ändert (ein Name ginge auch, aber Namen können neu vergeben werden).
 UPDATE_OWNER = "004910347cbb4a3fa020e611711bb4f3"

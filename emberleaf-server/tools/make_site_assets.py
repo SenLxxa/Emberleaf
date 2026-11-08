@@ -1,11 +1,14 @@
-"""Builds the images and fonts of the Emberleaf website (emberleaf-server/site/) from the project's own art.
+"""Builds the pictures and fonts of the Emberleaf website from the project's own art and game screenshots.
 
     emberleaf\\.venv\\Scripts\\python.exe emberleaf-server\\tools\\make_site_assets.py
 
-- the maple leaf of the logo as a vector (same formula as emberleaf-mod/tools/make_menu_art.py) for the zoom
-- the painted Emberleaf logo of the main menu
-- game screenshots from the mod's game tests (emberleaf-mod/build/run/clientGameTest/screenshots) as WebP
-- the launcher's fonts (Nunito, Pixelify Sans)
+Small things go into the worker itself (emberleaf-server/site/): the maple leaf of the logo as a vector (same formula
+as emberleaf-mod/tools/make_menu_art.py) for the zoom, the painted logo, the launcher's fonts.
+
+Big pictures go to emberleaf-server/media/ and from there into Cloudflare KV (tools/upload_media.py, deploy.ps1 does it),
+the worker serves them under /m/<name>. They come from the game test WebsiteShotsTest (1920x1080, texture pack and Glut
+shader): run it with EMBERLEAF_TEST_ONLY=website, it writes build/run/clientGameTest/screenshots/site-*.png. The test
+folder is wiped on every game test run, so media/ is the copy that counts: pictures whose source is gone are kept.
 """
 import math
 import shutil
@@ -16,25 +19,15 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 SITE = ROOT / "emberleaf-server" / "site"
 IMG = SITE / "img"
+MEDIA = ROOT / "emberleaf-server" / "media"
 SHOTS_SRC = ROOT / "emberleaf-mod" / "build" / "run" / "clientGameTest" / "screenshots"
 LOGO_SRC = ROOT / "emberleaf-mod" / "src" / "client" / "resources" / "assets" / "emberleaf" / "textures" / "gui" / "menu" / "logo.png"
 FONTS_SRC = ROOT / "emberleaf" / "ui"
-# screenshot file in the game tests -> name on the website
-SHOTS = {
-    "0049_features-title": "menu",
-    "0003_emberleaf-menu-island": "menu-island",
-    "0021_emberleaf-friend-cosmetics": "cosmetics",
-    "0026_emberleaf-emote-cheer": "emote",
-    "0076_features-lagerfeuer-chat": "chat",
-    "0077_features-lagerfeuer-friends": "friends",
-    "0047_shader-sunset": "shader",
-    "0039_pack-world-2": "world",
-    "0071_features-emote-wheel": "emote-wheel",
-    "0072_features-settings": "settings",
-    "0050_features-tools": "tools",
-    "0017_skins-ingame": "skins",
-    "0073_features-new-hud": "hud",
-}
+# backgrounds over the whole screen
+BACKGROUNDS = {"site-bg-sunset": "bg-sunset", "site-bg-morning": "bg-morning", "site-bg-night": "bg-night"}
+# main menu scenes (with the friends list), shown as cards
+MENUS = {f"site-menu-{s}": f"menu-{s}" for s in ("island", "cave", "nether", "end", "overworld")}
+LOOKS = ("eternal", "herbst", "drache", "frost", "prisma", "leere")
 
 
 def leaf_points(cx=50.0, cy=47.0, size=100.0, steps=360):
@@ -75,25 +68,52 @@ def leaf_svgs():
         f'export const LEAF = "{d}";\nexport const VEINS = "{vein_d}";\n', "utf-8")
 
 
+def shot(name):
+    path = SHOTS_SRC / f"{name}.png"
+    return Image.open(path).convert("RGB") if path.is_file() else None
+
+
+def media_from_shots():
+    made = []
+    for src, name in BACKGROUNDS.items():
+        im = shot(src)
+        if im:
+            im.save(MEDIA / f"{name}.webp", "WEBP", quality=72, method=6)
+            made.append(name)
+    for src, name in MENUS.items():
+        im = shot(src)
+        if im:
+            im.resize((1280, 720), Image.LANCZOS).save(MEDIA / f"{name}.webp", "WEBP", quality=80, method=6)
+            made.append(name)
+    for look in LOOKS:
+        im = shot(f"site-look-{look}-back")
+        if im:
+            # the player stands in the middle: a square around them, wings, cape and pet included
+            im.crop((600, 300, 1320, 1020)).resize((600, 600), Image.LANCZOS).save(MEDIA / f"look-{look}.webp", "WEBP", quality=80, method=6)
+            made.append(f"look-{look}")
+    return made
+
+
 def main():
     IMG.mkdir(parents=True, exist_ok=True)
-    (IMG / "shots").mkdir(exist_ok=True)
+    MEDIA.mkdir(parents=True, exist_ok=True)
     (SITE / "fonts").mkdir(exist_ok=True)
     leaf_svgs()
-
-    logo = Image.open(LOGO_SRC).convert("RGBA")
-    logo.save(IMG / "logo.webp", "WEBP", quality=90, method=6)
-
-    for src, name in SHOTS.items():
-        shot = Image.open(SHOTS_SRC / f"{src}.png").convert("RGB")
-        shot.save(IMG / "shots" / f"{name}.webp", "WEBP", quality=82, method=6)
-
+    Image.open(LOGO_SRC).convert("RGBA").save(IMG / "logo.webp", "WEBP", quality=90, method=6)
     for font in ("nunito.woff2", "pixelify-sans.woff2"):
-        shutil.copyfile(FONTS_SRC / "fonts" / font if (FONTS_SRC / "fonts" / font).is_file() else FONTS_SRC / font,
-                        SITE / "fonts" / font)
+        shutil.copyfile(FONTS_SRC / "fonts" / font if (FONTS_SRC / "fonts" / font).is_file() else FONTS_SRC / font, SITE / "fonts" / font)
 
-    total = sum(p.stat().st_size for p in SITE.rglob("*") if p.is_file() and p.suffix in (".webp", ".svg", ".woff2"))
-    print(f"Webseiten-Bilder fertig: {total / 1024:.0f} KB")
+    # the 854x480 screenshots of the first website now live in media/ too
+    old = IMG / "shots"
+    if old.is_dir():
+        for f in old.glob("*.webp"):
+            shutil.copyfile(f, MEDIA / f.name)
+        shutil.rmtree(old)
+
+    made = media_from_shots()
+    print("neu aus dem Spiel:", ", ".join(made) or "nichts (keine site-*.png im Testordner, media/ bleibt wie es ist)")
+    total = sum(p.stat().st_size for p in MEDIA.glob("*.webp"))
+    print(f"media/: {len(list(MEDIA.glob('*.webp')))} Bilder, {total / 1024:.0f} KB")
 
 
 if __name__ == "__main__":

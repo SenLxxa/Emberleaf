@@ -46,6 +46,7 @@ public class FeaturesTest implements FabricClientGameTest {
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
+		if (Only.skip("features")) return;
 		context.runOnClient(mc -> {
 			Path data = mc.gameDirectory.toPath().toAbsolutePath().resolve("emberleaf-features-data");
 			try {

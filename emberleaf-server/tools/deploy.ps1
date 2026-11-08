@@ -63,6 +63,10 @@ $text = [IO.File]::ReadAllText($toml) -replace '(binding = "FILES"\s*\r?\nid = "
 [IO.File]::WriteAllText($toml, $text, (New-Object Text.UTF8Encoding($false)))
 Write-Host "Datei-Speicher: emberleaf-files ($($kv.id))"
 
+# die großen Bilder der Webseite (media/) liegen im Datei-Speicher, nur geänderte werden hochgeladen
+& $python -I (Join-Path $server "tools\upload_media.py") --remote
+if ($LASTEXITCODE -ne 0) { throw "Die Bilder der Webseite konnten nicht hochgeladen werden." }
+
 $deployRun = Run @("deploy")
 $out = $deployRun.text
 Write-Host $out

@@ -80,6 +80,8 @@ const SCHEMA = [
 	"CREATE UNIQUE INDEX IF NOT EXISTS party_members_uuid ON party_members (uuid)",
 	"CREATE TABLE IF NOT EXISTS party_invites (party TEXT NOT NULL, uuid TEXT NOT NULL, created INTEGER NOT NULL, PRIMARY KEY (party, uuid))",
 	"CREATE TABLE IF NOT EXISTS pair_codes (code TEXT PRIMARY KEY, uuid TEXT NOT NULL, expires INTEGER NOT NULL)",
+	// Anmelden mit Microsoft auf der Webseite: PKCE-Schlüssel, bis Microsoft zurückleitet (10 Minuten)
+	"CREATE TABLE IF NOT EXISTS oauth_states (state TEXT PRIMARY KEY, verifier TEXT NOT NULL, back TEXT NOT NULL, expires INTEGER NOT NULL)",
 ];
 let schemaReady = null;
 
@@ -113,6 +115,7 @@ export default {
 			const url = new URL(request.url);
 			// Webseite und Handy-App brauchen keine Datenbank, um sich zu zeigen
 			if (request.method === "GET" || request.method === "HEAD") {
+				if (url.pathname.startsWith("/m/")) return await mediaFile(url, env);
 				const page = siteFile(request, url);
 				if (page) return page;
 				if (url.pathname === "/app" || url.pathname.startsWith("/app/")) return appFile(request, url);
@@ -134,6 +137,8 @@ async function route(request, env, url, ctx) {
 	if (path === "/v1/health") return json({ ok: true, name: "Emberleaf Lagerfeuer", app: true, site: true });
 	if (path === "/v1/auth" && method === "POST") return auth(request, env);
 	if (path === "/v1/pair/claim" && method === "POST") return pairClaim(request, env);
+	if (method === "GET" && path === "/auth/microsoft") return microsoftStart(url, env);
+	if (method === "GET" && path === "/auth/callback") return microsoftCallback(request, url, env);
 	if (method === "GET" && path.startsWith("/v1/image/")) return getImage(path.slice("/v1/image/".length), env);
 	if (method === "GET" && path.startsWith("/v1/skin/")) return getSkin(path.slice("/v1/skin/".length));
 	// Updates und Downloads sind öffentlich: Launcher ohne Anmeldung und die Webseite holen sie sich auch
@@ -260,15 +265,127 @@ async function logout(request, env) {
 // ---------- Handy koppeln ----------
 // Der Launcher (angemeldet) holt einen kurzen Einmal-Code, das Handy tauscht ihn gegen eine eigene Anmeldung.
 
-async function pairStart(url, env, me) {
+async function newPairCode(env, uuid) {
 	const bytes = crypto.getRandomValues(new Uint8Array(6));
 	const code = [...bytes].map((b) => PAIR_ALPHABET[b % PAIR_ALPHABET.length]).join("");
 	const t = now();
 	await env.DB.batch([
-		env.DB.prepare("DELETE FROM pair_codes WHERE uuid = ?1 OR expires < ?2").bind(me.uuid, t),
-		env.DB.prepare("INSERT INTO pair_codes (code, uuid, expires) VALUES (?1, ?2, ?3)").bind(code, me.uuid, t + PAIR_SECONDS),
+		env.DB.prepare("DELETE FROM pair_codes WHERE uuid = ?1 OR expires < ?2").bind(uuid, t),
+		env.DB.prepare("INSERT INTO pair_codes (code, uuid, expires) VALUES (?1, ?2, ?3)").bind(code, uuid, t + PAIR_SECONDS),
 	]);
-	return json({ code, expires: t + PAIR_SECONDS, url: `${url.origin}/app#pair=${code}` });
+	return { code, expires: t + PAIR_SECONDS };
+}
+
+async function pairStart(url, env, me) {
+	const pair = await newPairCode(env, me.uuid);
+	return json({ ...pair, url: `${url.origin}/app#pair=${pair.code}` });
+}
+
+// ---------- Anmelden mit Microsoft auf der Webseite ----------
+// Wie im Launcher: Microsoft → Xbox Live → Minecraft-Profil. Der Server sieht die Tokens nur kurz und speichert sie
+// nicht, am Ende gibt es einen Einmal-Code (wie beim Handy-Koppeln), den die Seite gegen ihre Anmeldung tauscht.
+// In Azure muss <Webseite>/auth/callback als Umleitungs-URI unter "Mobile- und Desktopanwendungen" stehen.
+
+const MS_AUTHORIZE = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
+const MS_TOKEN = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
+const MS_SCOPE = "XboxLive.signin offline_access";
+const OAUTH_SECONDS = 10 * 60;
+const BACK_PAGES = ["/", "/upload"];
+const OAUTH_COOKIE = "emberleaf_oauth";
+const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+function redirectTo(location, cookie) {
+	const headers = { location, "cache-control": "no-store", "referrer-policy": "no-referrer" };
+	if (cookie) headers["set-cookie"] = cookie;
+	return new Response(null, { status: 302, headers });
+}
+
+async function microsoftStart(url, env) {
+	if (!env.MS_CLIENT_ID) throw new HttpError(500, "Anmelden mit Microsoft ist aus (Variable MS_CLIENT_ID fehlt).");
+	const state = randomHex(16);
+	const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+	const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+	const back = BACK_PAGES.includes(url.searchParams.get("to")) ? url.searchParams.get("to") : "/";
+	await env.DB.batch([
+		env.DB.prepare("DELETE FROM oauth_states WHERE expires < ?1").bind(now()),
+		env.DB.prepare("INSERT INTO oauth_states (state, verifier, back, expires) VALUES (?1, ?2, ?3, ?4)").bind(state, verifier, back, now() + OAUTH_SECONDS),
+	]);
+	const params = new URLSearchParams({
+		client_id: env.MS_CLIENT_ID, response_type: "code", redirect_uri: `${url.origin}/auth/callback`, response_mode: "query",
+		scope: MS_SCOPE, state, code_challenge: challenge, code_challenge_method: "S256", prompt: "select_account",
+	});
+	// das Cookie bindet die Anmeldung an diesen Browser: ein fremder Rückruf-Link meldet niemanden an
+	const cookie = `${OAUTH_COOKIE}=${state}; Path=/auth; Max-Age=${OAUTH_SECONDS}; HttpOnly; Secure; SameSite=Lax`;
+	return redirectTo(`${MS_AUTHORIZE}?${params}`, cookie);
+}
+
+async function postJson(target, payload) {
+	const r = await fetch(target, {
+		method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(payload),
+	});
+	return { status: r.status, data: await r.json().catch(() => ({})) };
+}
+
+async function minecraftProfile(code, verifier, redirectUri, env) {
+	const tokenRes = await fetch(MS_TOKEN, {
+		method: "POST",
+		headers: { "content-type": "application/x-www-form-urlencoded" },
+		body: new URLSearchParams({ client_id: env.MS_CLIENT_ID, scope: MS_SCOPE, code, redirect_uri: redirectUri, grant_type: "authorization_code", code_verifier: verifier }),
+	});
+	const token = await tokenRes.json().catch(() => ({}));
+	if (!token.access_token) {
+		console.error("Microsoft-Token", tokenRes.status, token.error, token.error_description);
+		throw new HttpError(401, "Microsoft hat die Anmeldung abgelehnt. Versuch es nochmal.");
+	}
+	const xbl = await postJson("https://user.auth.xboxlive.com/user/authenticate", {
+		Properties: { AuthMethod: "RPS", SiteName: "user.auth.xboxlive.com", RpsTicket: `d=${token.access_token}` },
+		RelyingParty: "http://auth.xboxlive.com", TokenType: "JWT",
+	});
+	if (!xbl.data.Token) throw new HttpError(401, "Xbox Live hat die Anmeldung abgelehnt.");
+	const xsts = await postJson("https://xsts.auth.xboxlive.com/xsts/authorize", {
+		Properties: { SandboxId: "RETAIL", UserTokens: [xbl.data.Token] }, RelyingParty: "rp://api.minecraftservices.com/", TokenType: "JWT",
+	});
+	if (!xsts.data.Token) {
+		const xerr = String(xsts.data.XErr || "");
+		if (xerr === "2148916233") throw new HttpError(401, "Dieses Microsoft-Konto hat noch kein Xbox-Profil. Starte Minecraft einmal mit dem offiziellen Launcher.");
+		if (xerr === "2148916238") throw new HttpError(401, "Bei Kinderkonten muss ein Erwachsener das in der Microsoft-Familie erst erlauben.");
+		throw new HttpError(401, "Xbox Live hat die Anmeldung abgelehnt.");
+	}
+	const uhs = xsts.data.DisplayClaims?.xui?.[0]?.uhs;
+	const mc = await postJson("https://api.minecraftservices.com/authentication/login_with_xbox", { identityToken: `XBL3.0 x=${uhs};${xsts.data.Token}` });
+	if (!mc.data.access_token) {
+		console.error("Minecraft-Login", mc.status, JSON.stringify(mc.data).slice(0, 300));
+		throw new HttpError(401, mc.status === 403 ? "Mojang hat diese Anmeldung (noch) nicht freigegeben." : "Die Minecraft-Anmeldung hat nicht geklappt.");
+	}
+	const profileRes = await fetch("https://api.minecraftservices.com/minecraft/profile", { headers: { authorization: `Bearer ${mc.data.access_token}` } });
+	if (profileRes.status === 404) throw new HttpError(403, "Dieses Microsoft-Konto besitzt kein Minecraft: Java Edition.");
+	const profile = await profileRes.json().catch(() => ({}));
+	if (!UUID_RE.test(profile.id || "") || !NAME_RE.test(profile.name || "")) throw new HttpError(401, "Unerwartete Antwort von Minecraft.");
+	return { id: profile.id, name: profile.name };
+}
+
+async function microsoftCallback(request, url, env) {
+	const clear = `${OAUTH_COOKIE}=; Path=/auth; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
+	const fail = (back, message) => redirectTo(`${url.origin}${back}#login-error=${encodeURIComponent(message)}`, clear);
+	const state = url.searchParams.get("state") || "";
+	const cookie = (request.headers.get("cookie") || "").match(new RegExp(`(?:^|;\\s*)${OAUTH_COOKIE}=([0-9a-f]{32})`))?.[1];
+	if (!/^[0-9a-f]{32}$/.test(state) || state !== cookie) return fail("/", "Die Anmeldung ist abgelaufen. Versuch es nochmal.");
+	const saved = await env.DB.prepare("DELETE FROM oauth_states WHERE state = ?1 AND expires > ?2 RETURNING verifier, back").bind(state, now()).first();
+	if (!saved) return fail("/", "Die Anmeldung ist abgelaufen. Versuch es nochmal.");
+	if (url.searchParams.get("error")) return fail(saved.back, "Die Anmeldung wurde abgebrochen.");
+	const code = url.searchParams.get("code") || "";
+	if (!code) return fail(saved.back, "Microsoft hat keinen Anmelde-Code geschickt.");
+	try {
+		const profile = await minecraftProfile(code, saved.verifier, `${url.origin}/auth/callback`, env);
+		await env.DB.prepare(
+			"INSERT INTO players (uuid, name, created, last_seen) VALUES (?1, ?2, ?3, ?3) ON CONFLICT(uuid) DO UPDATE SET name = excluded.name",
+		).bind(profile.id, profile.name, now()).run();
+		const pair = await newPairCode(env, profile.id);
+		return redirectTo(`${url.origin}${saved.back}#login=${pair.code}`, clear);
+	} catch (e) {
+		if (!(e instanceof HttpError)) console.error(e);
+		return fail(saved.back, e instanceof HttpError ? e.message : "Die Anmeldung bei Microsoft hat nicht geklappt. Versuch es nochmal.");
+	}
 }
 
 async function pairClaim(request, env) {
@@ -1301,6 +1418,24 @@ function staticResponse(request, key, file, { page = false, csp = "" } = {}) {
 		headers["referrer-policy"] = "no-referrer";
 	}
 	return new Response(data, { headers });
+}
+
+// Große Bilder der Webseite liegen in KV (media/<name>, hochgeladen von tools/upload_media.py). build.py hängt an jeden
+// Verweis ?v=<Prüfsumme>, deshalb dürfen Browser sie ein Jahr lang behalten.
+const MEDIA_RE = /^[a-z0-9-]{1,60}\.(webp|png|jpg)$/;
+
+async function mediaFile(url, env) {
+	const name = url.pathname.slice(3);
+	if (!MEDIA_RE.test(name) || !env.FILES) return new Response("Nicht gefunden", { status: 404 });
+	const { value, metadata } = await env.FILES.getWithMetadata(`media/${name}`, { type: "stream" });
+	if (!value) return new Response("Nicht gefunden", { status: 404 });
+	return new Response(value, {
+		headers: {
+			"content-type": metadata?.type || "image/webp",
+			"cache-control": url.searchParams.has("v") ? "public, max-age=31536000, immutable" : "public, max-age=3600",
+			"x-content-type-options": "nosniff",
+		},
+	});
 }
 
 function siteFile(request, url) {

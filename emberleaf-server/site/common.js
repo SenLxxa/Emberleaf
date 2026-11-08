@@ -1,7 +1,8 @@
-// Gemeinsam für Startseite und Upload-Seite: Anmeldung über Emberleaf, Server-Aufrufe, Kopfzeile.
+// Gemeinsam für Startseite und Upload-Seite: Anmeldung, Server-Aufrufe, Kopfzeile.
 //
-// Anmelden geht mit einem Einmal-Code aus dem Launcher (wie das Handy-Koppeln). Der Launcher-Knopf "Webseite"
-// öffnet die Seite mit #login=CODE, dann klappt es ohne Tippen.
+// Anmelden geht mit dem Minecraft-Konto über Microsoft (/auth/microsoft, der Server prüft alles und schickt am Ende
+// #login=CODE zurück) oder mit einem Einmal-Code aus dem Launcher. Der Launcher-Knopf "Webseite" öffnet die Seite
+// gleich mit #login=CODE.
 
 const SESSION_KEY = "emberleaf.site.session";
 const listeners = new Set();
@@ -113,22 +114,52 @@ export async function logout() {
   toast("Du bist abgemeldet.");
 }
 
-export function openLogin() {
+const MS_LOGO = '<svg viewBox="0 0 21 21" aria-hidden="true"><rect width="10" height="10" fill="#f25022"/><rect x="11" width="10" height="10" fill="#7fba00"/>'
+  + '<rect y="11" width="10" height="10" fill="#00a4ef"/><rect x="11" y="11" width="10" height="10" fill="#ffb900"/></svg>';
+
+function dialogHtml() {
+  const back = location.pathname.replace(/\/+$/, "") === "/upload" ? "/upload" : "/";
+  return `
+  <dialog class="login" id="login-dialog" aria-labelledby="login-title">
+    <form method="dialog" class="login-form" id="login-form">
+      <img src="/s/img/leaf.svg" alt="" width="48" height="53">
+      <h2 id="login-title">Bei Emberleaf anmelden</h2>
+      <p>Mit deinem Minecraft-Konto über Microsoft, genau wie im Launcher. Ein extra Passwort brauchst du nicht.</p>
+      <p class="form-error" id="ms-error" role="alert"></p>
+      <a class="btn ms-btn" href="/auth/microsoft?to=${back}">${MS_LOGO}<span>Mit Microsoft anmelden</span></a>
+      <details class="code-login">
+        <summary>Oder mit einem Code aus dem Launcher</summary>
+        <p class="muted">Klick oben im Launcher auf <b>Webseite</b>, dann bist du sofort angemeldet. Oder: Launcher → Freunde → <b>Handy koppeln</b> und den Code hier eintippen.</p>
+        <label class="code-label" for="login-code">Code</label>
+        <input id="login-code" name="code" autocomplete="one-time-code" maxlength="7" placeholder="ABC 123" spellcheck="false">
+        <p class="form-error" id="login-error" role="alert"></p>
+        <button class="btn" id="login-submit" value="ok">Mit Code anmelden</button>
+      </details>
+      <div class="login-actions"><button class="btn ghost" value="cancel" formnovalidate>Abbrechen</button></div>
+    </form>
+  </dialog>`;
+}
+
+export function openLogin(message = "") {
   const dialog = $("#login-dialog");
   if (!dialog) return;
+  $("#ms-error").textContent = message;
   $("#login-error").textContent = "";
   $("#login-code").value = "";
   dialog.showModal();
-  $("#login-code").focus();
 }
 
 function setupLoginDialog() {
+  document.body.insertAdjacentHTML("beforeend", dialogHtml());
   const dialog = $("#login-dialog");
-  if (!dialog) return;
   const form = $("#login-form");
   form.addEventListener("submit", async (e) => {
     if (e.submitter?.value === "cancel") return; // Abbrechen schließt einfach
     e.preventDefault();
+    if (!$("#login-code").value.trim()) {
+      $("#login-error").textContent = "Tipp den Code aus dem Launcher ein.";
+      return;
+    }
     const btn = $("#login-submit");
     btn.setAttribute("aria-disabled", "true");
     $("#login-error").textContent = "";
@@ -201,14 +232,27 @@ function renderAccount() {
   $("#logout-btn").addEventListener("click", logout);
 }
 
-// vom Launcher geöffnet: #login=ABC123 (auch wenn die Seite schon offen war)
+// vom Launcher oder nach Microsoft zurück: #login=ABC123 (auch wenn die Seite schon offen war),
+// oder #login-error=… wenn die Microsoft-Anmeldung nicht geklappt hat
 async function loginFromHash() {
+  const failed = location.hash.match(/^#login-error=(.*)$/);
+  if (failed) {
+    history.replaceState(null, "", location.pathname + location.search);
+    let message = "Die Anmeldung hat nicht geklappt.";
+    try {
+      message = decodeURIComponent(failed[1]).slice(0, 200);
+    } catch {
+      // kaputter Text: Standardmeldung
+    }
+    openLogin(message);
+    return true;
+  }
   const m = location.hash.match(/^#login=([A-Za-z0-9]{6})$/);
   if (!m) return false;
   history.replaceState(null, "", location.pathname + location.search);
   try {
     const data = await claim(m[1]);
-    toast(`Hallo ${data.name}! Du bist über Emberleaf angemeldet.`);
+    toast(`Hallo ${data.name}! Du bist angemeldet.`);
   } catch (err) {
     toast(err.message, "error");
   }

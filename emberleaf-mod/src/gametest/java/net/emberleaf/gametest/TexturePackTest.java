@@ -28,6 +28,7 @@ public class TexturePackTest implements FabricClientGameTest {
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
+		if (Only.skip("texturepack")) return;
 		// quick runs while working on the menu: EMBERLEAF_TEST_MENU_ONLY=1 skips the worlds, EMBERLEAF_MESH_STATS=1 logs heavy blocks
 		if (System.getenv("EMBERLEAF_TEST_MENU_ONLY") != null) System.setProperty("emberleaf.test.menuOnly", "true");
 		if (System.getenv("EMBERLEAF_MESH_STATS") != null) System.setProperty("emberleaf.meshStats", "true");

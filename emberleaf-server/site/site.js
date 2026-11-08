@@ -1,54 +1,142 @@
-// Startseite: zwei Scroll-Szenen und die Downloads.
-//  1. Titelbild: beim Scrollen fliegt Emberleaf nach rechts weg, die Features kommen nacheinander von links.
-//  2. Zoom: das Ahornblatt aus dem Logo wird zum Fenster, man fliegt hinein – drinnen liegt der Download.
+// Startseite: Scroll-Szenen und die Downloads.
+//  1. Titelbild über einem Sonnenuntergang aus dem Spiel: beim Runterscrollen zoomt das Bild, das Logo steigt nach oben weg.
+//  2. Collage: Bilder fliegen nacheinander rein – von unten, oben, rechts, links, aus der Mitte und von draußen –,
+//     am Ende zoomt alles nach draußen weg.
+//  3. Cosmetics: die Looks laufen beim Runterscrollen von rechts nach links durch.
+//  4. Zoom: das Ahornblatt aus dem Logo wird zum Fenster, man fliegt hinein – drinnen liegt der Download.
+// Auf schmalen Bildschirmen stehen Collage und Looks untereinander bzw. zum Wischen, Karten fliegen beim Erscheinen rein.
 import { $, api, esc, initAccount } from "./common.js";
 import { LEAF, VEINS } from "./leaf-path.js";
 
 const root = document.documentElement;
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const wideQuery = matchMedia("(min-width: 900px) and (min-height: 560px)");
 if (!reduced) root.classList.add("motion");
+let wide = false;
 
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const span = (a, b, v) => clamp((v - a) / (b - a));
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+const px = (v) => `${v.toFixed(1)}px`;
+const progress = (scene, stage) => {
+  const range = scene.offsetHeight - stage.offsetHeight;
+  return range > 0 ? clamp(-scene.getBoundingClientRect().top / range) : 0;
+};
 
-// ---------- Szene 1: Titelbild und Features ----------
-const intro = $(".intro");
-const introStage = intro.querySelector(".stage");
-const slides = [...intro.querySelectorAll(".slide")];
-const dots = [...intro.querySelectorAll(".dots li")];
-const sky = intro.querySelector(".sky");
-const STEP = 1; // so viele Bildschirmhöhen Scrollen pro Folie
-const HOLD = 0.3; // am Anfang jedes Schritts steht alles still
+// ---------- 1 · Titelbild ----------
+const hero = $(".hero-scene");
+const heroStage = hero.querySelector(".stage");
+const heroBg = hero.querySelector(".hero-bg");
+const heroInner = hero.querySelector(".hero");
+const heroShade = hero.querySelector(".hero-shade");
+const leavesBox = $("#leaves");
+const cue = hero.querySelector(".scroll-cue");
 
-function introTrack(u) {
-  const steps = slides.length - 1;
-  const k = Math.floor(u / STEP);
-  if (k >= steps) return steps;
-  return k + ease(span(HOLD, 1, (u - k * STEP) / STEP));
-}
-
-function introFrame() {
+function heroFrame() {
+  const p = progress(hero, heroStage);
   const H = innerHeight;
-  const W = innerWidth;
-  const u = Math.max(0, -intro.getBoundingClientRect().top) / H;
-  const t = introTrack(u);
-  slides.forEach((slide, i) => {
-    const d = i - t; // < 0: schon dran gewesen (geht nach rechts), > 0: kommt noch (wartet links)
-    const far = Math.abs(d) >= 1.02;
-    slide.style.visibility = far ? "hidden" : "";
-    if (far) return;
-    slide.style.setProperty("--x", `${(-d * W).toFixed(1)}px`);
-    slide.style.setProperty("--r", `${(-d * 5).toFixed(2)}deg`);
-    slide.style.setProperty("--o", (1 - span(0.55, 1, Math.abs(d))).toFixed(3));
-    slide.style.setProperty("--px", `${(-d * W * 0.14).toFixed(1)}px`);
-  });
-  const active = Math.round(t);
-  dots.forEach((dot, i) => dot.classList.toggle("on", i === active));
-  sky.style.setProperty("--dusk", (t / (slides.length - 1)).toFixed(3));
+  heroBg.style.setProperty("--bs", (1.04 + 0.18 * p).toFixed(4));
+  heroBg.style.setProperty("--by", px(p * H * 0.06));
+  heroInner.style.setProperty("--hy", px(-ease(p) * H * 0.24));
+  heroInner.style.setProperty("--hs", (1 - 0.12 * p).toFixed(4));
+  heroInner.style.setProperty("--ho", (1 - span(0.15, 0.8, p)).toFixed(3));
+  cue.style.setProperty("--ho", (1 - span(0, 0.25, p)).toFixed(3));
+  heroShade.style.setProperty("--shade", (1 + p * 0.6).toFixed(3));
+  leavesBox.style.setProperty("--lo", (1 - span(0.3, 1, p)).toFixed(3));
 }
 
-// ---------- Szene 2: Zoom ins Ahornblatt ----------
+// ---------- 2 · Bilder fliegen rein ----------
+const fly = $(".fly-scene");
+const flyStage = fly.querySelector(".stage");
+const collage = $("#collage");
+const tiles = [...collage.querySelectorAll(".tile")];
+const flyTitle = fly.querySelector(".fly-title");
+const flyCaption = $("#fly-caption");
+const flyBg = fly.querySelector(".fly-bg");
+const FLY_START = 0.25; // Bildschirmhöhen Scrollen, bevor das erste Bild kommt
+const FLY_STEP = 0.7; // Abstand zwischen zwei Bildern
+const FLY_MOVE = 0.55; // so lange fliegt ein Bild
+let shownTile = -2;
+
+function showCaption(i) {
+  if (i === shownTile) return;
+  shownTile = i;
+  const cap = tiles[i]?.querySelector("figcaption");
+  $("#fly-kicker").textContent = cap ? cap.querySelector(".kicker").textContent : "Scroll weiter";
+  $("#fly-heading").textContent = cap ? cap.querySelector("b").textContent : "Gleich fliegen die Bilder rein";
+  $("#fly-text").textContent = cap ? cap.querySelector("span:not(.kicker)").textContent : "";
+  flyCaption.classList.remove("swap");
+  void flyCaption.offsetWidth; // Animation neu starten
+  flyCaption.classList.add("swap");
+}
+
+function flyFrame() {
+  const W = innerWidth;
+  const H = innerHeight;
+  const u = clamp(-fly.getBoundingClientRect().top / H, 0, (fly.offsetHeight - flyStage.offsetHeight) / H);
+  let landed = -1;
+  tiles.forEach((tile, i) => {
+    const t = ease(span(FLY_START + i * FLY_STEP, FLY_START + i * FLY_STEP + FLY_MOVE, u));
+    if (t >= 0.5) landed = i;
+    const k = 1 - t;
+    let tx = 0;
+    let ty = 0;
+    let ts = 1;
+    let to = 1;
+    switch (tile.dataset.from) {
+      case "bottom": ty = k * H * 1.15; break;
+      case "top": ty = -k * H * 1.15; break;
+      case "right": tx = k * W * 1.1; break;
+      case "left": tx = -k * W * 1.1; break;
+      case "center": ts = 0.05 + 0.95 * t; to = clamp(t * 1.6); break;
+      case "outside": ts = 1 + k * 3.5; to = t; break; // kommt von draußen, groß und durchsichtig, auf die Wand
+      default: break;
+    }
+    tile.style.visibility = t <= 0 ? "hidden" : "";
+    tile.style.setProperty("--tx", px(tx));
+    tile.style.setProperty("--ty", px(ty));
+    tile.style.setProperty("--ts", ts.toFixed(4));
+    tile.style.setProperty("--to", to.toFixed(3));
+  });
+  // am Ende geht es nach draußen: alles zoomt weg
+  const end = FLY_START + tiles.length * FLY_STEP + 0.3;
+  const z = ease(span(end, end + 0.8, u));
+  collage.style.setProperty("--cs", (1 - 0.5 * z).toFixed(4));
+  collage.style.setProperty("--co", (1 - z).toFixed(3));
+  flyTitle.style.setProperty("--fo", (1 - z).toFixed(3));
+  flyTitle.style.setProperty("--fy", px(-z * 60));
+  flyCaption.style.setProperty("--fo", (1 - z).toFixed(3));
+  flyBg.style.setProperty("--bs", (1.04 + 0.1 * span(0, end + 0.8, u)).toFixed(4));
+  showCaption(landed);
+}
+
+// ---------- 3 · Cosmetics-Band ----------
+const cos = $(".cos-scene");
+const cosStage = cos.querySelector(".stage");
+const track = $("#cos-track");
+const looks = [...track.querySelectorAll(".look")];
+const cosBg = cos.querySelector(".cos-bg");
+const trackDistance = () => Math.max(0, track.scrollWidth - innerWidth + 40);
+
+function cosLayout() {
+  // so hoch, dass das Band einmal ganz durchläuft (plus etwas Ruhe am Anfang und Ende)
+  cos.style.height = wide && !reduced ? `${Math.round(innerHeight * 1.5 + trackDistance())}px` : "";
+}
+
+function cosFrame() {
+  const p = progress(cos, cosStage);
+  const W = innerWidth;
+  const t = ease(span(0.08, 0.92, p));
+  track.style.setProperty("--kx", px(W * 0.3 * (1 - t) - trackDistance() * t));
+  looks.forEach((look, i) => {
+    look.style.setProperty("--ly", px(Math.sin(p * Math.PI * 3 + i * 1.3) * 10));
+    look.style.setProperty("--lr", `${(Math.sin(p * Math.PI * 2 + i) * 1.2).toFixed(2)}deg`);
+  });
+  cosBg.style.setProperty("--by", px(-p * innerHeight * 0.05));
+  cosBg.style.setProperty("--bs", (1.06 + 0.06 * p).toFixed(4));
+}
+
+// ---------- 4 · Zoom ins Ahornblatt ----------
 const zoom = $(".zoom");
 const zoomStage = zoom.querySelector(".stage");
 const cover = $("#cover");
@@ -63,8 +151,7 @@ for (const el of [coverGlow, coverLine, coverVeins]) el.setAttribute("vector-eff
 function zoomFrame() {
   const W = innerWidth;
   const H = innerHeight;
-  const range = zoom.offsetHeight - zoomStage.offsetHeight;
-  const p = range > 0 ? clamp(-zoom.getBoundingClientRect().top / range) : 1;
+  const p = progress(zoom, zoomStage);
   const appear = ease(span(0, 0.14, p));
   const z = ease(span(0.14, 0.86, p));
   const s0 = Math.min(W, H) * 0.0054; // Pixel pro Blatt-Einheit: das Blatt ist gut halb so groß wie der Bildschirm
@@ -77,7 +164,7 @@ function zoomFrame() {
   coverVeins.style.opacity = (1 - span(0.02, 0.22, z)).toFixed(3);
   cover.style.display = z >= 0.999 ? "none" : "";
   zoomTitle.style.setProperty("--to", (1 - span(0.03, 0.2, p)).toFixed(3));
-  zoomTitle.style.setProperty("--ty", `${(-p * 120).toFixed(1)}px`);
+  zoomTitle.style.setProperty("--ty", px(-p * 120));
   roomInner.style.setProperty("--ro", span(0.35, 0.75, z).toFixed(3));
   roomInner.style.setProperty("--rs", (0.86 + 0.14 * ease(span(0.3, 1, z))).toFixed(4));
   zoomStage.style.setProperty("--room-events", z >= 0.98 ? "auto" : "none");
@@ -89,9 +176,12 @@ let queued = false;
 function frame() {
   queued = false;
   topbar.classList.toggle("solid", scrollY > 40);
-  if (!reduced) {
-    introFrame();
-    zoomFrame();
+  if (reduced) return;
+  heroFrame();
+  zoomFrame();
+  if (wide) {
+    flyFrame();
+    cosFrame();
   }
 }
 const request = () => {
@@ -100,23 +190,40 @@ const request = () => {
     requestAnimationFrame(frame);
   }
 };
+
+function setWide() {
+  wide = wideQuery.matches;
+  root.classList.toggle("wide", wide);
+  if (!wide) {
+    // die Inline-Werte der Animationen dürfen die Liste nicht verschieben
+    for (const el of [...tiles, track, collage]) el.removeAttribute("style");
+    for (const tile of tiles) tile.style.cssText = tile.dataset.pos;
+  }
+  cosLayout();
+  observeReveals();
+  request();
+}
+for (const tile of tiles) tile.dataset.pos = tile.getAttribute("style") || "";
 addEventListener("scroll", request, { passive: true });
-addEventListener("resize", request);
-frame();
+addEventListener("resize", () => {
+  cosLayout();
+  request();
+});
+wideQuery.addEventListener("change", setWide);
+addEventListener("load", () => {
+  cosLayout(); // die Bilder im Band haben jetzt ihre Breite
+  request();
+});
 
 // Sprünge aus dem Menü landen an der richtigen Stelle der Szenen
 function jumpTarget(name) {
   if (reduced) return null;
   const H = innerHeight;
   if (name === "top") return 0;
-  if (name === "features") return intro.offsetTop + STEP * H;
+  if (name === "features") return wide ? fly.offsetTop + (FLY_START + FLY_MOVE) * H : fly.offsetTop;
+  if (name === "cosmetics") return wide ? cos.offsetTop + (cos.offsetHeight - cosStage.offsetHeight) * 0.12 : cos.offsetTop;
   if (name === "download") return zoom.offsetTop + zoom.offsetHeight - zoomStage.offsetHeight;
   return null;
-}
-// direkt mit …/#download oder …/#features geöffnet: an die fertige Stelle der Szene springen
-if (location.hash === "#download" || location.hash === "#features") {
-  const top = jumpTarget(location.hash.slice(1));
-  if (top !== null) requestAnimationFrame(() => scrollTo(0, top));
 }
 document.addEventListener("click", (e) => {
   const link = e.target.closest("[data-jump]");
@@ -135,9 +242,8 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// fallende Blätter im Titelbild
+// fallende Blätter vor dem Titelbild
 if (!reduced) {
-  const box = $("#leaves");
   const count = innerWidth < 600 ? 7 : 14;
   for (let i = 0; i < count; i++) {
     const leaf = document.createElement("i");
@@ -148,27 +254,33 @@ if (!reduced) {
     leaf.style.setProperty("--delay", `${(-Math.random() * 20).toFixed(1)}s`);
     leaf.style.setProperty("--sway", `${(20 + Math.random() * 60).toFixed(0)}px`);
     leaf.style.setProperty("--h", `${(Math.random() * 40 - 25).toFixed(0)}deg`);
-    box.append(leaf);
+    leavesBox.append(leaf);
   }
 }
 
-// Karten tauchen beim Scrollen auf
+// Karten, Packs und (auf schmalen Bildschirmen) die Collage-Bilder fliegen beim Erscheinen aus ihrer Richtung rein
 const io = new IntersectionObserver((entries) => {
   for (const entry of entries) {
     if (entry.isIntersecting) {
-      entry.target.classList.add("in");
+      entry.target.classList.remove("out");
       io.unobserve(entry.target);
     }
   }
-}, { rootMargin: "0px 0px -8% 0px" });
-const observe = (els) => {
+}, { rootMargin: "0px 0px -10% 0px" });
+function observe(els) {
   if (reduced) return;
   for (const el of els) {
-    el.classList.add("reveal");
+    if (el.dataset.seen) continue;
+    el.dataset.seen = "1";
+    el.classList.add("out");
     io.observe(el);
   }
-};
-observe(document.querySelectorAll(".card, .pack, .join-card, .legal details"));
+}
+function observeReveals() {
+  observe(document.querySelectorAll(".card[data-from], .pack[data-from], .join-card[data-from]"));
+  if (!wide) observe(tiles);
+  else for (const tile of tiles) tile.classList.remove("out");
+}
 
 // ---------- Downloads und Releases ----------
 const mb = (bytes) => `${(bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0).replace(".", ",")} MB`;
@@ -226,7 +338,7 @@ function showReleases(releases) {
     return;
   }
   box.innerHTML = releases.map((r, i) => `
-    <article class="release">
+    <article class="release" data-from="${i % 2 ? "right" : "left"}">
       <header>
         <h3>Emberleaf ${esc(r.version)}</h3>
         <time datetime="${new Date(r.published * 1000).toISOString()}">${esc(date(r.published))}</time>
@@ -238,6 +350,8 @@ function showReleases(releases) {
         : `<span title="Ältere Dateien werden aufgeräumt">${esc(f.name)}</span>`)).join("")}</div>
     </article>`).join("");
   observe(box.querySelectorAll(".release"));
+  cosLayout();
+  request();
 }
 
 async function loadReleases() {
@@ -251,5 +365,11 @@ async function loadReleases() {
   }
 }
 
+setWide();
+// direkt mit …/#download, #features oder #cosmetics geöffnet: an die fertige Stelle der Szene springen
+if (["#download", "#features", "#cosmetics"].includes(location.hash)) {
+  const top = jumpTarget(location.hash.slice(1));
+  if (top !== null) requestAnimationFrame(() => scrollTo(0, top));
+}
 initAccount();
 loadReleases();
