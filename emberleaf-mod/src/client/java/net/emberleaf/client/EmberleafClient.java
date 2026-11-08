@@ -128,6 +128,7 @@ public class EmberleafClient implements ClientModInitializer {
 			Emotes.tick(mc);
 			Pets.tick(mc);
 			Auras.tick(mc);
+			net.emberleaf.client.feature.CapeFx.tick(mc);
 			Contrails.tick(mc);
 			EmberHud.tick(mc);
 			net.emberleaf.client.feature.Minimap.tick(mc);

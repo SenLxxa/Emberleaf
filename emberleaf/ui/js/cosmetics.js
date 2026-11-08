@@ -4,7 +4,7 @@ import {
   CrouchAnimation, FlyingAnimation, FunctionAnimation, IdleAnimation, PlayerObject, RunningAnimation,
   SkinViewer, SwimAnimation, WaveAnimation,
 } from "../vendor/esm/skinview3d.js";
-import { buildEModel, mountOnPart } from "./emodel.js";
+import { buildEModel, ClothSim, CLOTH_SEGMENTS, mountOnPart } from "./emodel.js";
 import { sprite, toTexture } from "./textures.js";
 import { api } from "./ui.js";
 
@@ -120,6 +120,217 @@ export async function capeFrames(item) {
     c.getContext("2d").drawImage(img, 0, f * fh, img.width, fh, 0, 0, img.width, fh);
     return c;
   });
+}
+
+// ---------- Cape-Physik & Cape-Effekte ----------
+
+const deg = (r) => (r * 180) / Math.PI;
+
+// Wie weit die Bewegung das Cape nach hinten drückt (Grad), aus dem Kippwinkel, den die skinview3d-Animation setzt
+function capeLeanOf(player, motion) {
+  return Math.max(0, deg(player.cape.rotation.x) - 6) * 0.7 + (motion.walk || 0) * 8;
+}
+
+/**
+ * Macht das Bild-Cape von skinview3d (ein starrer 10x16x1-Block) zu biegsamem Stoff: gleiches Bild, gleiche UVs,
+ * aber fein unterteilt und jedes Bild wie im Spiel gebogen (ClothSim).
+ */
+export class ImageCapeCloth {
+  constructor(player) {
+    this.player = player;
+    this.mesh = player.cape.cape;
+    this.original = this.mesh.geometry;
+    this.sim = new ClothSim();
+    const geo = new THREE.BoxGeometry(10, 16, 1, 4, CLOTH_SEGMENTS, 1);
+    copyBoxUVs(this.original, geo);
+    this.mesh.geometry = geo;
+    this.geo = geo;
+    this.rest = Float32Array.from(geo.attributes.position.array);
+    this.restN = Float32Array.from(geo.attributes.normal.array);
+    this.p = new THREE.Vector3();
+    this.n = new THREE.Vector3();
+    this.mesh.frustumCulled = false;
+  }
+
+  update(dt, t, motion) {
+    const alpha = this.player.cape.rotation.x; // kippt den ganzen Umhang schon selbst
+    this.sim.solve(dt, 16, { ...motion, time: t, capeLean: capeLeanOf(this.player, motion) });
+    const off = this.mesh.position;
+    const pos = this.geo.attributes.position;
+    const nor = this.geo.attributes.normal;
+    const { p, n } = this;
+    for (let v = 0; v < pos.count; v++) {
+      p.fromArray(this.rest, v * 3).add(off);
+      n.fromArray(this.restN, v * 3);
+      this.sim.apply(p, n, alpha);
+      p.sub(off);
+      pos.setXYZ(v, p.x, p.y, p.z);
+      nor.setXYZ(v, n.x, n.y, n.z);
+    }
+    pos.needsUpdate = true;
+    nor.needsUpdate = true;
+  }
+
+  /** Saum-Mitte in Weltkoordinaten. */
+  hemWorld(out = new THREE.Vector3()) {
+    return this.player.cape.localToWorld(this.sim.hem(this.player.cape.rotation.x, out));
+  }
+
+  dispose() {
+    this.mesh.geometry = this.original;
+    this.geo.dispose();
+  }
+}
+
+// Überträgt die Cape-UVs eines einfachen Blocks (24 Ecken) auf einen unterteilten Block gleicher Größe
+function copyBoxUVs(from, to) {
+  const fp = from.attributes.position;
+  const fn = from.attributes.normal;
+  const fu = from.attributes.uv;
+  const tp = to.attributes.position;
+  const tn = to.attributes.normal;
+  const tu = to.attributes.uv;
+  const faces = [];
+  for (let f = 0; f < fp.count / 4; f++) {
+    const c = [0, 1, 2].map((k) => new THREE.Vector3().fromBufferAttribute(fp, f * 4 + k));
+    const uv = [0, 1, 2].map((k) => new THREE.Vector2().fromBufferAttribute(fu, f * 4 + k));
+    faces.push({ n: new THREE.Vector3().fromBufferAttribute(fn, f * 4), c, uv });
+  }
+  const p = new THREE.Vector3();
+  const nn = new THREE.Vector3();
+  const ea = new THREE.Vector3();
+  const eb = new THREE.Vector3();
+  for (let v = 0; v < tp.count; v++) {
+    p.fromBufferAttribute(tp, v);
+    nn.fromBufferAttribute(tn, v);
+    const face = faces.reduce((best, f) => (f.n.dot(nn) > best.n.dot(nn) ? f : best), faces[0]);
+    ea.subVectors(face.c[1], face.c[0]);
+    eb.subVectors(face.c[2], face.c[0]);
+    const d = p.clone().sub(face.c[0]);
+    const a = ea.lengthSq() ? d.dot(ea) / ea.lengthSq() : 0;
+    const b = eb.lengthSq() ? d.dot(eb) / eb.lengthSq() : 0;
+    tu.setXY(v,
+      face.uv[0].x + a * (face.uv[1].x - face.uv[0].x) + b * (face.uv[2].x - face.uv[0].x),
+      face.uv[0].y + a * (face.uv[1].y - face.uv[0].y) + b * (face.uv[2].y - face.uv[0].y));
+  }
+  tu.needsUpdate = true;
+}
+
+/**
+ * Leuchtfarben eines Capes (wie CapeFx.java im Spiel): die häufigsten hellen, kräftigen Farben.
+ * Leer = schlichtes Cape ohne Effekte. region = [x0, y0, x1, y1] als Anteil des Bildes.
+ */
+export function capePalette(image, { region = [0, 0, 1, 1], glows = false } = {}) {
+  const w = image.width;
+  const h = image.height;
+  if (!w || !h) return [];
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d");
+  ctx.drawImage(image, 0, 0);
+  let data;
+  try {
+    data = ctx.getImageData(0, 0, w, h).data;
+  } catch {
+    return [];
+  }
+  const buckets = new Map();
+  let opaque = 0;
+  let bright = 0;
+  for (let y = Math.round(region[1] * h); y < Math.round(region[3] * h); y++) {
+    for (let x = Math.round(region[0] * w); x < Math.round(region[2] * w); x++) {
+      const i = (y * w + x) * 4;
+      if (data[i + 3] < 160) continue;
+      opaque++;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      if (max < 200 || (max - min < 60 && min < 215)) continue;
+      bright++;
+      const key = ((r >> 5) << 6) | ((g >> 5) << 3) | (b >> 5);
+      const e = buckets.get(key) || { n: 0, r: 0, g: 0, b: 0 };
+      e.n++; e.r += r; e.g += g; e.b += b;
+      buckets.set(key, e);
+    }
+  }
+  if (!bright || (!glows && bright < Math.max(3, opaque * 0.04))) return [];
+  return [...buckets.values()].sort((a, b) => b.n - a.n).slice(0, 4)
+    .map((e) => new THREE.Color().setRGB(e.r / e.n / 255, e.g / e.n / 255, e.b / e.n / 255, THREE.SRGBColorSpace));
+}
+
+/** Funken, die vom Cape-Saum wegfliegen: mehr und weiter, je schneller die Figur läuft. */
+export class CapeSparks {
+  constructor(parent, palette, hemWorld) {
+    this.parent = parent;
+    this.palette = palette;
+    this.hemWorld = hemWorld;
+    const n = 48;
+    this.positions = new Float32Array(n * 3);
+    this.colors = new Float32Array(n * 3);
+    this.geometry = new THREE.BufferGeometry();
+    this.geometry.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
+    this.geometry.setAttribute("color", new THREE.BufferAttribute(this.colors, 3));
+    this.material = new THREE.PointsMaterial({
+      size: 1.9,
+      map: spriteTexture("spark"),
+      vertexColors: true,
+      transparent: true,
+      alphaTest: 0.01,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    this.points = new THREE.Points(this.geometry, this.material);
+    this.points.frustumCulled = false;
+    parent.add(this.points);
+    this.particles = Array.from({ length: n }, () => ({ life: 1, max: 1, x: 0, y: -999, z: 0, vx: 0, vy: 0, vz: 0, color: palette[0] }));
+    this.acc = 0;
+    this.hem = new THREE.Vector3();
+  }
+
+  update(dt, t, motion) {
+    const walk = motion.walk || 0;
+    this.acc += dt * (2.5 + walk * 26);
+    while (this.acc >= 1) {
+      this.acc -= 1;
+      const p = this.particles.find((q) => q.life >= q.max);
+      if (!p) break;
+      this.parent.worldToLocal(this.hemWorld(this.hem));
+      Object.assign(p, {
+        life: 0,
+        max: 0.6 + Math.random() * 0.7,
+        x: this.hem.x + (Math.random() - 0.5) * 8,
+        y: this.hem.y + (Math.random() - 0.5) * 1.5,
+        z: this.hem.z,
+        // nach hinten (die Figur schaut +z) und leicht nach oben
+        vx: (Math.random() - 0.5) * 2,
+        vy: 1 + Math.random() * 2.5,
+        vz: -(2 + walk * 12) * (0.6 + Math.random() * 0.6),
+        color: this.palette[(Math.random() * this.palette.length) | 0],
+      });
+    }
+    this.particles.forEach((p, i) => {
+      p.life += dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.z += p.vz * dt;
+      p.vy -= dt * 1.5;
+      const alive = p.life < p.max;
+      const k = alive ? Math.sin((p.life / p.max) * Math.PI) * (0.75 + 0.25 * Math.sin(t * 20 + i)) : 0;
+      this.positions.set(alive ? [p.x, p.y, p.z] : [0, -999, 0], i * 3);
+      this.colors.set([p.color.r * k, p.color.g * k, p.color.b * k], i * 3);
+    });
+    this.geometry.attributes.position.needsUpdate = true;
+    this.geometry.attributes.color.needsUpdate = true;
+  }
+
+  dispose() {
+    this.points.removeFromParent();
+    this.geometry.dispose();
+    this.material.dispose();
+  }
 }
 
 // ---------- Auren ----------
@@ -331,6 +542,19 @@ const EMOTE_FNS = {
     p.skin.leftArm.rotation.z = 1.2;
     p.skin.rightArm.rotation.z = -1.2;
   },
+  "emote-float": (p, t) => {
+    // Eternal: abheben und sanft schweben (gleiche Werte wie emote-float in Emotes.java)
+    const s = t * 2.2;
+    const ease = Math.min(1, t * 1.5);
+    p.skin.position.y = 8 + (5 + Math.sin(s) * 1.2) * ease;
+    p.skin.leftArm.rotation.x = -0.2;
+    p.skin.rightArm.rotation.x = -0.2;
+    p.skin.leftArm.rotation.z = 0.45 + Math.sin(s) * 0.12;
+    p.skin.rightArm.rotation.z = -(0.45 + Math.sin(s) * 0.12);
+    p.skin.leftLeg.rotation.x = -Math.sin(t * 1.6) * 0.12;
+    p.skin.rightLeg.rotation.x = Math.sin(t * 1.6) * 0.12;
+    p.skin.head.rotation.x = -0.15;
+  },
 };
 
 export function emoteAnimation(id) {
@@ -445,8 +669,14 @@ export class Outfit {
         const fps = item.fps || 8;
         let index = 0;
         let acc = 0;
+        const cloth = new ImageCapeCloth(player);
+        // nur die Außenseite (1,1)-(11,17) des 64x32-Bildes zählt für die Effektfarben
+        const palette = capePalette(frames[0], { region: [1 / 64, 1 / 32, 11 / 64, 17 / 32] });
+        const sparks = palette.length ? new CapeSparks(anchor, palette, (out) => cloth.hemWorld(out)) : null;
         return {
-          update: (dt) => {
+          update: (dt, t, motion) => {
+            cloth.update(dt, t, motion);
+            sparks?.update(dt, t, motion);
             if (frames.length < 2) return;
             acc += dt;
             if (acc < 1 / fps) return;
@@ -454,7 +684,7 @@ export class Outfit {
             index = (index + 1) % frames.length;
             this.viewer.loadCape(frames[index]);
           },
-          dispose: () => this.viewer.resetCape(),
+          dispose: () => { cloth.dispose(); sparks?.dispose(); this.viewer.resetCape(); },
         };
       }
       case "aura": {
@@ -525,9 +755,15 @@ export class Outfit {
     const mount = mountOnPart(em.object, category === "head" ? 24 : 18);
     (category === "head" ? player.skin.head : player.skin.body).add(mount);
     if (category === "cape") this.viewer.resetCape();
+    // Capes mit Leuchtteilen oder kräftigen hellen Farben sprühen Funken vom Saum
+    const palette = em.cloth && em.texture.image ? capePalette(em.texture.image, { glows: em.hasGlow }) : [];
+    const sparks = palette.length ? new CapeSparks(anchor, palette, (out) => em.hemWorld(out)) : null;
     return {
-      update: (dt, t) => em.update(t, { capeLean: 4 }),
-      dispose: () => { mount.removeFromParent(); em.dispose(); },
+      update: (dt, t, motion = {}) => {
+        em.update(t, { ...motion, capeLean: capeLeanOf(player, motion) });
+        sparks?.update(dt, t, motion);
+      },
+      dispose: () => { mount.removeFromParent(); em.dispose(); sparks?.dispose(); },
     };
   }
 
@@ -550,7 +786,18 @@ export class Outfit {
 
   update(dt) {
     this.t += dt;
-    for (const part of Object.values(this.parts)) part.update?.(dt, this.t);
+    const motion = this.motion(dt);
+    for (const part of Object.values(this.parts)) part.update?.(dt, this.t, motion);
+  }
+
+  // Wie schnell die Figur gerade läuft (0..1), geschätzt aus dem Beinschwung der skinview3d-Animation
+  motion(dt) {
+    const leg = this.player.skin.leftLeg.rotation.x;
+    const swing = dt > 0 && this.lastLeg !== undefined ? Math.abs(leg - this.lastLeg) / dt : 0;
+    this.lastLeg = leg;
+    this.walk = (this.walk || 0) + (Math.min(1, swing / 3) - (this.walk || 0)) * (1 - Math.exp(-dt * 3));
+    const crouching = this.items.emote?.id === "emote-sneak";
+    return { walk: this.walk, walkPos: this.t * 6, crouching };
   }
 }
 
@@ -566,7 +813,7 @@ const FRAMING = {
   minime: { pos: [10, 6, 58], target: [-5, -2, 0] },
   emote: { pos: [30, 10, 52], target: [0, 1, 0] },
 };
-const EMOTE_POSE_TIME = { "emote-wave": 0.6, "emote-jump": 0.25, "emote-cheer": 0.2, "emote-spin": 0.25 };
+const EMOTE_POSE_TIME = { "emote-wave": 0.6, "emote-jump": 0.25, "emote-cheer": 0.2, "emote-spin": 0.25, "emote-float": 1.1 };
 
 export class ThumbnailRenderer {
   constructor() {

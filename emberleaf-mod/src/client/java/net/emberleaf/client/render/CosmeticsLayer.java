@@ -70,20 +70,28 @@ public class CosmeticsLayer extends RenderLayer<AvatarRenderState, PlayerModel> 
 	/** Blockbench cosmetics: head items ride on the head, everything else on the body. Pets walk on their own (Pets). */
 	private static void submitModels(PoseStack poseStack, SubmitNodeCollector collector, int light, int overlay, AvatarRenderState state,
 		Outfit outfit, PlayerModel model) {
-		Minecraft mc = Minecraft.getInstance();
-		Entity entity = mc.level != null ? mc.level.getEntity(state.id) : null;
-		boolean airborne = state.isFallFlying || (entity != null && !entity.onGround() && !entity.isInWater() && !entity.isPassenger());
-		EModelRenderer.Motion motion = new EModelRenderer.Motion(state.ageInTicks / 20F, Math.min(1, state.walkAnimationSpeed),
-			state.walkAnimationPos, airborne, state.isCrouching, state.capeLean / 2F + state.capeFlap, state.capeLean2 / 2F, false);
-		for (String slot : new String[] {"head", "body", "wings", "cape"}) {
+		EModelRenderer.Motion motion = motionOf(state);
+		String[] slots = {"head", "body", "wings", "cape"};
+		for (int s = 0; s < slots.length; s++) {
+			String slot = slots[s];
 			EModel m = outfit.model(slot);
 			if (m == null) continue;
 			poseStack.pushPose();
 			(slot.equals("head") ? model.head : model.body).translateAndRotate(poseStack);
 			EModelRenderer.toPartSpace(poseStack);
-			EModelRenderer.submit(m, poseStack, collector, light, overlay, motion);
+			// one cloth simulation per player and slot, so the cape keeps its swing between frames
+			EModelRenderer.submit(m, poseStack, collector, light, overlay, motion, ((long) state.id << 3) | s);
 			poseStack.popPose();
 		}
+	}
+
+	/** How the player moves right now, for capes, wings and the other moving cosmetics (also used by the image cape). */
+	public static EModelRenderer.Motion motionOf(AvatarRenderState state) {
+		Minecraft mc = Minecraft.getInstance();
+		Entity entity = mc.level != null ? mc.level.getEntity(state.id) : null;
+		boolean airborne = state.isFallFlying || (entity != null && !entity.onGround() && !entity.isInWater() && !entity.isPassenger());
+		return new EModelRenderer.Motion(state.ageInTicks / 20F, Math.min(1, state.walkAnimationSpeed),
+			state.walkAnimationPos, airborne, state.isCrouching, state.capeLean / 2F + state.capeFlap, state.capeLean2 / 2F, false);
 	}
 
 	private static void drawOnPart(

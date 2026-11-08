@@ -64,6 +64,11 @@ public final class EModel {
 		return texture;
 	}
 
+	/** The texture as PNG bytes (for reading its colours, e.g. cape effects). */
+	public byte[] textureBytes() {
+		return textureBytes;
+	}
+
 	public void release() {
 		if (texture != null) Minecraft.getInstance().getTextureManager().release(texture);
 		texture = null;

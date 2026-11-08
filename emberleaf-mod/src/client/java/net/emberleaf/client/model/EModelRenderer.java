@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.Map;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.emberleaf.client.render.CapeCloth;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.ARGB;
 import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -35,27 +37,102 @@ public final class EModelRenderer {
 	}
 
 	public static void submit(EModel model, PoseStack pose, SubmitNodeCollector collector, int light, int overlay, Motion motion) {
-		Identifier texture = model.texture();
-		if (texture == null) return;
-		Matrix4f[] bones = pose(model, motion);
-		collector.submitCustomGeometry(pose, RenderTypes.entityTranslucent(texture), (p, buf) -> emit(model, bones, p, buf, light, overlay));
+		submit(model, pose, collector, light, overlay, motion, CapeCloth.NO_SIM);
 	}
 
-	private static void emit(EModel model, Matrix4f[] mats, PoseStack.Pose pose, VertexConsumer buf, int light, int overlay) {
+	/**
+	 * simKey identifies the wearer and slot, so a cape keeps its swing from frame to frame ({@link CapeCloth#NO_SIM} = no memory).
+	 * Cape bones (and everything hanging on them) bend like cloth; glowing parts are drawn emissive and shimmer softly.
+	 */
+	public static void submit(EModel model, PoseStack pose, SubmitNodeCollector collector, int light, int overlay, Motion motion, long simKey) {
+		Identifier texture = model.texture();
+		if (texture == null) return;
+		CapeInfo cape = capeInfo(model);
+		Matrix4f[] bones = pose(model, motion, cape);
+		CapeCloth.Shape cloth = cape.hasCape() ? CapeCloth.solve(simKey, cape.length(), motion) : null;
+		float shimmer = 0.84F + 0.16F * Mth.sin(motion.time() * 3.1F);
+		int g = (int) (shimmer * 255);
+		int glowColor = ARGB.color(255, g, g, g);
+		collector.submitCustomGeometry(pose, RenderTypes.entityTranslucent(texture),
+			(p, buf) -> emit(model, bones, cape, cloth, p, buf, light, overlay, false, -1));
+		if (cape.hasGlow()) {
+			collector.submitCustomGeometry(pose, RenderTypes.entityTranslucentEmissive(texture),
+				(p, buf) -> emit(model, bones, cape, cloth, p, buf, FULL_BRIGHT, overlay, true, glowColor));
+		}
+	}
+
+	/** Which bones hang on a cape (index of the topmost cape bone above them, or -1), how long the cape is, whether anything glows. */
+	private record CapeInfo(int[] roots, float length, boolean hasCape, boolean hasGlow) {}
+
+	private static final Map<EModel, CapeInfo> CAPE_INFO = new java.util.WeakHashMap<>();
+
+	private static CapeInfo capeInfo(EModel model) {
+		return CAPE_INFO.computeIfAbsent(model, m -> {
+			List<EModel.Bone> bones = m.bones;
+			int[] roots = new int[bones.size()];
+			boolean hasCape = false;
+			boolean hasGlow = false;
+			for (int i = 0; i < bones.size(); i++) {
+				EModel.Bone bone = bones.get(i);
+				int parent = bone.parent() >= 0 && bone.parent() < i ? bone.parent() : -1;
+				roots[i] = parent >= 0 && roots[parent] >= 0 ? roots[parent] : bone.kind().equals("cape") ? i : -1;
+				hasCape |= roots[i] >= 0;
+				hasGlow |= bone.glow();
+			}
+			// height of the cape below its pivot, from the rest pose
+			float length = 1;
+			for (int i = 0; i < bones.size(); i++) {
+				if (roots[i] < 0) continue;
+				float top = bones.get(roots[i]).origin().y;
+				float[] q = bones.get(i).quads();
+				for (int j = 0; j + 23 <= q.length; j += 23) {
+					for (int k = 0; k < 4; k++) length = Math.max(length, top - q[j + k * 5 + 1]);
+				}
+			}
+			return new CapeInfo(roots, length, hasCape, hasGlow);
+		});
+	}
+
+	private static void emit(EModel model, Matrix4f[] mats, CapeInfo cape, CapeCloth.Shape cloth, PoseStack.Pose pose, VertexConsumer buf,
+		int light, int overlay, boolean glowPass, int color) {
 		Vector3f v = new Vector3f();
 		Vector3f n = new Vector3f();
+		float[] c = new float[20];
 		List<EModel.Bone> bones = model.bones;
 		for (int b = 0; b < bones.size(); b++) {
 			EModel.Bone bone = bones.get(b);
+			if (bone.glow() != glowPass) continue;
 			float[] q = bone.quads();
 			Matrix4f m = mats[b];
 			int l = bone.glow() ? FULL_BRIGHT : light;
+			int root = cape.roots()[b];
+			Matrix4f toWorld = null;
+			Matrix4f toRest = null;
+			if (cloth != null && root >= 0 && Math.abs(mats[root].determinant()) > 1e-6F) {
+				toWorld = mats[root];
+				toRest = new Matrix4f(mats[root]).invert().mul(m);
+			}
 			for (int i = 0; i + 23 <= q.length; i += 23) {
+				if (toRest != null) {
+					// bend in the cape's own (unrotated) space, then put it where the cape bone is
+					for (int k = 0; k < 4; k++) {
+						int o = i + k * 5;
+						toRest.transformPosition(q[o], q[o + 1], q[o + 2], v);
+						c[k * 5] = v.x;
+						c[k * 5 + 1] = v.y;
+						c[k * 5 + 2] = v.z;
+						c[k * 5 + 3] = q[o + 3];
+						c[k * 5 + 4] = q[o + 4];
+					}
+					toRest.transformDirection(q[i + 20], q[i + 21], q[i + 22], n).normalize();
+					CapeCloth.emitGrid(buf, pose, toWorld, cloth, bones.get(root).origin(), c, n.x, n.y, n.z, color, l, overlay);
+					continue;
+				}
 				m.transformDirection(q[i + 20], q[i + 21], q[i + 22], n).normalize();
 				for (int k = 0; k < 4; k++) {
 					int o = i + k * 5;
 					m.transformPosition(q[o], q[o + 1], q[o + 2], v);
-					buf.addVertex(pose, v.x, v.y, v.z).setColor(-1).setUv(q[o + 3], q[o + 4]).setOverlay(overlay).setLight(l)
+					buf.addVertex(pose, v.x, v.y, v.z).setColor(color).setUv(q[o + 3], q[o + 4]).setOverlay(overlay).setLight(l)
 						.setNormal(pose, n.x, n.y, n.z);
 				}
 			}
@@ -63,7 +140,7 @@ public final class EModelRenderer {
 	}
 
 	/** Absolute-space matrix for every bone: parent * T(origin + offset) * R * S * T(-origin). */
-	private static Matrix4f[] pose(EModel model, Motion motion) {
+	private static Matrix4f[] pose(EModel model, Motion motion, CapeInfo cape) {
 		List<EModel.Bone> bones = model.bones;
 		Matrix4f[] out = new Matrix4f[bones.size()];
 		EModel.Animation clip = motion.sitting() ? model.animation("sit", "idle")
@@ -86,7 +163,12 @@ public final class EModelRenderer {
 					if (s != null && !s.isEmpty()) sample(scale, s, clipTime);
 				}
 			}
-			auto(bone, rot, motion);
+			if (cape.roots()[i] >= 0) {
+				// capes bend as cloth (CapeCloth); only the top cape bone sways sideways
+				if (cape.roots()[i] == i) rot.z += motion.capeSide();
+			} else {
+				auto(bone, rot, motion);
+			}
 			Vector3f o = bone.origin();
 			Matrix4f m = new Matrix4f(bone.parent() >= 0 && bone.parent() < i ? out[bone.parent()] : new Matrix4f());
 			m.translate(o.x + pos.x, o.y + pos.y, o.z + pos.z)

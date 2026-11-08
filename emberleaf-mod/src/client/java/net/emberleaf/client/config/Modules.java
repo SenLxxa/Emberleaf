@@ -80,6 +80,7 @@ public final class Modules {
 		add("cosmetics_others", "Cosmetics anderer", "Cosmetics deiner Freunde und anderer Emberleaf-Spieler", Category.COSMETICS, "item/totem_of_undying", true, false);
 		add("pets", "Pets", "Dein Begleiter läuft neben dir", Category.COSMETICS, "item/bone", true, false);
 		add("auras", "Auren", "Partikel, die um Spieler schweben", Category.COSMETICS, "item/blaze_powder", true, false);
+		add("cape_fx", "Cape-Effekte", "Leuchtende Funken in Cape-Farbe, wenn Capes mit Effekten wehen", Category.COSMETICS, "item/glowstone_dust", true, false);
 		add(new Module("contrails", "Kondensstreifen", "Streifen an den Flügelspitzen beim Elytra-Fliegen", Category.GRAPHICS, "item/elytra", true, true,
 			new Slider("Länge", 1, 8, 1, 3, " s"), List.of(), List.of()));
 		add(new Module("contrail_color", "Farbe der Kondensstreifen", "Neue Farben schaltest du mit deiner Spielzeit frei", Category.GRAPHICS,
