@@ -1,7 +1,4 @@
-- Freundesliste jetzt auch im Hauptmenü im Spiel (rechts oben): Klick auf einen Freund = mitspielen oder schreiben
-- Outfits deiner Freunde sind sofort aktuell, sobald sie etwas Neues anziehen
-- 20 neue Einstellungen im Emberleaf-Menü (Rechte Shift-Taste), z. B. Sprinten umschalten, Kein Kamerawackeln, Fadenkreuz-Farbe, Trank-Effekte, Item-Zähler, Uhrzeit im Chat, Spam zusammenfassen und Ping als Zahl
-- Neue Launcher-Einstellungen: Größe des Spielfensters, Vollbild, Java-Argumente und „Nach dem Spielen wieder öffnen“
-- Ohne eigenen Skin (oder offline) steht jetzt der Emberleaf-Camper da statt einer leeren Figur
-- Die Vorschaubilder der Pets zeigen jetzt wirklich das Pet
-- Das Lagerfeuer (Freunde) wird im Launcher einfacher erklärt
+- Das Lagerfeuer brennt! Freundesliste, Chat, Party und die Cosmetics deiner Freunde funktionieren jetzt für alle, ohne dass du etwas eintragen musst
+- Melde dich im Launcher mit deinem Microsoft-Konto an, dann findet ihr euch: Freunde fügst du unter „Freunde“ (im Spiel mit Taste U) mit ihrem Minecraft-Namen hinzu
+- Im Hauptmenü des Spiels siehst du rechts oben, wer online ist und wo – ein Klick und du spielst mit
+- Alte Test-Adressen in den Einstellungen werden automatisch durch das gemeinsame Lagerfeuer ersetzt

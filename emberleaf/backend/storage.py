@@ -3,6 +3,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import threading
 import time
 import uuid
@@ -46,6 +47,10 @@ DEFAULT_SETTINGS = {
 MENU_SCENES = ("auto", "autumn", "nether", "end", "cave")
 JVM_ARG_RE = re.compile(r"-[A-Za-z0-9:_.=+\-/%,]+")
 FRIENDS_SERVER_RE = re.compile(r"(https://[A-Za-z0-9.\-]+(:\d+)?|http://(127\.0\.0\.1|localhost)(:\d+)?)")
+LOCAL_SERVER_RE = re.compile(r"http://(127\.0\.0\.1|localhost)(:\d+)?/?")
+# The released Emberleaf.exe never uses a Lagerfeuer on this PC: such an address is a leftover from testing
+# (developer runs from the source keep it, the local tests need it).
+FROZEN = bool(getattr(sys, "frozen", False))
 
 _lock = threading.RLock()
 
@@ -72,7 +77,8 @@ def get_settings():
     with _lock:
         settings = dict(DEFAULT_SETTINGS)
         settings.update(read_json(SETTINGS_FILE, {}))
-        if not str(settings.get("friends_server") or "").strip():
+        server = str(settings.get("friends_server") or "").strip()
+        if not server or (FROZEN and LAGERFEUER_URL and LOCAL_SERVER_RE.fullmatch(server)):
             settings["friends_server"] = LAGERFEUER_URL  # everyone meets at the same Lagerfeuer by default
         return settings
 
@@ -112,6 +118,8 @@ def save_settings(patch):
                 value = str(value).strip().rstrip("/")
                 if value and not FRIENDS_SERVER_RE.fullmatch(value):
                     raise UserError("Die Lagerfeuer-Adresse muss mit https:// anfangen, z. B. https://lagerfeuer.dein-name.workers.dev")
+                if value and FROZEN and LOCAL_SERVER_RE.fullmatch(value):
+                    raise UserError("Ein Lagerfeuer auf diesem PC geht nur zum Testen. Lass das Feld leer, dann triffst du alle am gemeinsamen Lagerfeuer.")
             else:
                 value = str(value).strip()
             settings[key] = value
