@@ -1,4 +1,4 @@
-- Capes wehen jetzt wie Stoff: im Spiel und in der Launcher-Vorschau, bei Blockbench- und Bild-Capes
-- Neues Modul „Cape-Effekte“: leuchtende Capes sprühen Funken in ihren eigenen Farben (unter Cosmetics abschaltbar)
-- Glow-Teile von Capes leuchten und schimmern sanft
-- Emote „Schweben“ in der Launcher-Vorschau
+- Neue Capes für alle: Phoenixschwinge, Frostkrone, Leerenriss, Prismenherz und Sturmbrecher
+- Eternal-Paket für alle: Ewiges Licht (Cape), Engelsflügel, Heiligenschein, Lichtschwert und das Pet Lichtgeist
+- Neue Aura „Himmelsglanz“ und neues Emote „Schweben“ (auch im Spiel, Taste B)
+- Die alten Capes und das Fuchs-Pet sind raus. Eigene Bild-Capes malst du weiter im Cape-Editor.
