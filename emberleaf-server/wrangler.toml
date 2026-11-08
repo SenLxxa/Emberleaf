@@ -11,7 +11,7 @@ database_id = "9be33f1a-c545-4da4-ac71-72ae88ab4128"
 # Datei-Speicher für die Emberleaf-Versionen (exe, Mod, Shader), die auf der Webseite hochgeladen werden
 [[kv_namespaces]]
 binding = "FILES"
-id = "noch-nicht-angelegt"
+id = "5da3afcddd35444d9ccd8ad95b095ad4"
 
 [vars]
 # Wer auf der Webseite Updates hochladen darf: die feste Minecraft-ID (UUID) von SenLxca.
