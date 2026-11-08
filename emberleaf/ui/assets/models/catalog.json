@@ -94,5 +94,71 @@
   "name": "Eternal Lichtgeist",
   "category": "pet",
   "file": "eternal_lichtgeist"
+ },
+ {
+  "id": "pet-katze",
+  "name": "Katze",
+  "category": "pet",
+  "file": "katze"
+ },
+ {
+  "id": "pet-kupfergolem",
+  "name": "Kupfergolem",
+  "category": "pet",
+  "file": "kupfergolem"
+ },
+ {
+  "id": "pet-retriever",
+  "name": "Golden Retriever",
+  "category": "pet",
+  "file": "golden_retriever"
+ },
+ {
+  "id": "pet-panda",
+  "name": "Panda",
+  "category": "pet",
+  "file": "panda"
+ },
+ {
+  "id": "pet-drache",
+  "name": "Japanischer Drache",
+  "category": "pet",
+  "file": "japanischer_drache"
+ },
+ {
+  "id": "pet-phoenix",
+  "name": "Phönix-Küken",
+  "category": "pet",
+  "file": "phoenix_kueken"
+ },
+ {
+  "id": "pet-qualle",
+  "name": "Sternenqualle",
+  "category": "pet",
+  "file": "sternenqualle"
+ },
+ {
+  "id": "pet-schildkroete",
+  "name": "Kristallschildkröte",
+  "category": "pet",
+  "file": "kristallschildkroete"
+ },
+ {
+  "id": "pet-runenwolf",
+  "name": "Runenwolf",
+  "category": "pet",
+  "file": "runenwolf"
+ },
+ {
+  "id": "pet-drohne",
+  "name": "Mini-Drohne",
+  "category": "pet",
+  "file": "mini_drohne"
+ },
+ {
+  "id": "pet-mochi",
+  "name": "Mochi",
+  "category": "pet",
+  "file": "mochi"
  }
 ]
