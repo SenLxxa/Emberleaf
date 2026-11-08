@@ -30,21 +30,69 @@
   "file": "dragon_wings"
  },
  {
-  "id": "embercape",
-  "name": "Glut-Cape",
-  "category": "cape",
-  "file": "ember_cape"
- },
- {
   "id": "backpack",
   "name": "Wanderrucksack",
   "category": "body",
   "file": "backpack"
  },
  {
-  "id": "foxpet",
-  "name": "Fuchs",
+  "id": "phoenixschwinge",
+  "name": "Phoenixschwinge",
+  "category": "cape",
+  "file": "phoenixschwinge"
+ },
+ {
+  "id": "frostkrone",
+  "name": "Frostkrone",
+  "category": "cape",
+  "file": "frostkrone"
+ },
+ {
+  "id": "leerenriss",
+  "name": "Leerenriss",
+  "category": "cape",
+  "file": "leerenriss"
+ },
+ {
+  "id": "prismenherz",
+  "name": "Prismenherz",
+  "category": "cape",
+  "file": "prismenherz"
+ },
+ {
+  "id": "sturmbrecher",
+  "name": "Sturmbrecher",
+  "category": "cape",
+  "file": "sturmbrecher"
+ },
+ {
+  "id": "eternal-licht",
+  "name": "Eternal Ewiges Licht",
+  "category": "cape",
+  "file": "eternal_ewiges_licht"
+ },
+ {
+  "id": "eternal-fluegel",
+  "name": "Eternal Engelsflügel",
+  "category": "wings",
+  "file": "eternal_engelsfluegel"
+ },
+ {
+  "id": "eternal-schein",
+  "name": "Eternal Heiligenschein",
+  "category": "head",
+  "file": "eternal_heiligenschein"
+ },
+ {
+  "id": "eternal-schwert",
+  "name": "Eternal Lichtschwert",
+  "category": "body",
+  "file": "eternal_lichtschwert"
+ },
+ {
+  "id": "eternal-geist",
+  "name": "Eternal Lichtgeist",
   "category": "pet",
-  "file": "fox_pet"
+  "file": "eternal_lichtgeist"
  }
 ]
