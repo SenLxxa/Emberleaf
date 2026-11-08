@@ -1,4 +1,4 @@
-- Neue Capes für alle: Phoenixschwinge, Frostkrone, Leerenriss, Prismenherz und Sturmbrecher
-- Eternal-Paket für alle: Ewiges Licht (Cape), Engelsflügel, Heiligenschein, Lichtschwert und das Pet Lichtgeist
-- Neue Aura „Himmelsglanz“ und neues Emote „Schweben“ (auch im Spiel, Taste B)
-- Die alten Capes und das Fuchs-Pet sind raus. Eigene Bild-Capes malst du weiter im Cape-Editor.
+- 11 neue Pets für alle: Katze, Kupfergolem, Golden Retriever, Panda, Japanischer Drache, Phönix-Küken, Sternenqualle, Kristallschildkröte, Runenwolf, Mini-Drohne und Mochi
+- Der Japanische Drache fliegt im Kreis um dich herum und rollt sich auf deiner Schulter zusammen, sobald du stehen bleibst
+- Phönix-Küken, Sternenqualle und Mini-Drohne schweben neben dir in der Luft
+- Alle Pets setzen sich hin, wenn du ein paar Sekunden stehen bleibst, und haben eigene Sitz-Animationen
