@@ -5,8 +5,8 @@ eigener Shader und ein live gerendertes Hauptmenü. Für Minecraft Java **26.3**
 
 ## ⬇️ Herunterladen
 
-**[Emberleaf.exe herunterladen](https://github.com/SenLxxa/Emberleaf/releases/latest/download/Emberleaf.exe)**
-(Windows 10/11, 64 Bit)
+**[Zur Emberleaf-Webseite](https://lagerfeuer.emberleaf-server.workers.dev/#download)** – dort gibt es den Download
+(Windows 10/11, 64 Bit).
 
 1. Leg `Emberleaf.exe` in einen eigenen Ordner, zum Beispiel `Dokumente\Emberleaf`.
 2. Doppelklick. Windows zeigt beim ersten Mal vielleicht „Der Computer wurde durch Windows geschützt“:
@@ -35,13 +35,16 @@ Updates kommen von selbst: Emberleaf lädt neue Versionen im Hintergrund und fra
 | --- | --- |
 | `emberleaf/` | Launcher (Python, pywebview, minecraft-launcher-lib) |
 | `emberleaf-mod/` | Client-Mod für Fabric 26.3 (Java 25, Loom) |
-| `emberleaf-server/` | Lagerfeuer: Freunde-Server als Cloudflare Worker mit D1 |
+| `emberleaf-server/` | Webseite + Lagerfeuer (Freunde-Server): Cloudflare Worker mit D1 und KV |
 | `emberleaf-shader/` | Emberleaf-Glut-Shader für Iris |
 
-Neue Version veröffentlichen (baut Mod, Shader und exe, lädt alles als GitHub-Release hoch):
+Neue Version veröffentlichen: erst bauen (Mod, Shader und exe landen in `emberleaf\dist\release-<Version>\`) …
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File emberleaf\tools\release.ps1 -Version 0.0.3 -Notes "- Was neu ist"
+powershell -ExecutionPolicy Bypass -File emberleaf\tools\release.ps1 -Version 0.0.9
 ```
+
+… dann die Dateien auf der Webseite unter **/upload** hochladen (nur der Besitzer). Alle Launcher holen sich das
+Update innerhalb von 30 Minuten. Die Webseite selbst kommt mit `emberleaf-server\tools\deploy.ps1` zu Cloudflare.
 
 Emberleaf ist ein Fanprojekt und gehört nicht zu Mojang oder Microsoft.

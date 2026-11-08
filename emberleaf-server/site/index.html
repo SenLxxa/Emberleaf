@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Emberleaf – der gemütliche Minecraft-Client</title>
+<meta name="description" content="Emberleaf ist ein kostenloser Minecraft-Client mit eigenem Hauptmenü, Cosmetics, Freunden, Chat, Party, Texturen und Shader. Für Minecraft Java 26.3 auf Windows.">
+<meta name="theme-color" content="#17110d">
+<meta property="og:title" content="Emberleaf – der gemütliche Minecraft-Client">
+<meta property="og:description" content="Cosmetics, Freunde, Chat und Party – für dich und deine Freunde.">
+<meta property="og:image" content="/s/img/shots/menu.webp">
+<link rel="icon" href="/app/favicon.png">
+<link rel="preload" href="/s/fonts/nunito.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/s/img/logo.webp" as="image">
+<link rel="stylesheet" href="/s/site.css">
+<script type="module" src="/s/site.js"></script>
+</head>
+<body>
+<a class="skip" href="#download">Zum Download springen</a>
+
+<header class="topbar" id="topbar">
+  <a class="brand" href="#top" data-jump="top"><img src="/s/img/leaf.svg" alt="" width="28" height="31"><span>Emberleaf</span></a>
+  <nav class="nav" aria-label="Seiten">
+    <a href="#features" data-jump="features">Features</a>
+    <a href="#download" data-jump="download">Download</a>
+    <a href="#releases">Releases</a>
+    <a href="#packs">Packs</a>
+    <a href="#rechtliches">Rechtliches</a>
+  </nav>
+  <div class="account" id="account"><button class="btn small" type="button" data-login>Anmelden</button></div>
+</header>
+
+<main>
+  <!-- 1 · Titelbild. Beim Scrollen fliegt Emberleaf nach rechts weg, die Features kommen von links -->
+  <section class="scene intro" id="top" data-scene="intro" aria-label="Emberleaf und seine Features">
+    <div class="stage">
+      <div class="sky" aria-hidden="true">
+        <div class="sun"></div>
+        <div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
+        <svg class="hills" viewBox="0 0 1600 300" preserveAspectRatio="none">
+          <path class="h1" d="M0,170 C160,120 300,150 430,130 C600,100 700,160 860,140 C1030,118 1180,90 1340,120 C1450,140 1530,128 1600,118 V300 H0 Z"/>
+          <path class="h2" d="M0,220 C140,190 260,215 400,200 C560,182 660,226 820,214 C990,200 1120,170 1270,190 C1400,206 1500,196 1600,186 V300 H0 Z"/>
+          <g class="trees">
+            <path d="M210,204 l16,-46 l16,46 Z M236,206 l13,-36 l13,36 Z M1120,182 l18,-52 l18,52 Z M1150,186 l14,-40 l14,40 Z M1370,196 l15,-42 l15,42 Z"/>
+          </g>
+          <path class="h3" d="M0,262 C200,240 340,258 520,250 C720,240 860,268 1060,258 C1240,249 1420,236 1600,244 V300 H0 Z"/>
+        </svg>
+        <div class="leaves" id="leaves"></div>
+      </div>
+
+      <div class="slide hero" data-slide="0">
+        <h1 class="hero-title"><img class="hero-logo" src="/s/img/logo.webp" alt="Emberleaf" width="1030" height="260"></h1>
+        <p class="tagline">Der gemütliche Minecraft-Client für dich und deine Freunde.</p>
+        <div class="hero-actions">
+          <a class="btn primary big" href="#download" data-jump="download">Herunterladen</a>
+          <a class="btn ghost big" href="#features" data-jump="features">Was kann Emberleaf?</a>
+        </div>
+        <p class="chips"><span class="chip" id="hero-version">Alpha</span><span class="chip">Minecraft 26.3</span><span class="chip">Fabric</span><span class="chip">Windows</span></p>
+        <div class="scroll-cue" aria-hidden="true"><span></span>Scrollen</div>
+      </div>
+
+      <article class="slide feature" data-slide="1" id="features">
+        <figure class="shots">
+          <img class="shot main" src="/s/img/shots/menu.webp" alt="Das Emberleaf-Hauptmenü mit der Freundesliste rechts oben" width="854" height="480" loading="lazy">
+          <img class="shot side" src="/s/img/shots/menu-island.webp" alt="Hauptmenü-Szene mit schwebender Insel bei Sonnenuntergang" width="854" height="480" loading="lazy">
+        </figure>
+        <div class="feature-text">
+          <span class="kicker">Startbildschirm</span>
+          <h2>Dein eigenes Hauptmenü</h2>
+          <p>Statt dem grauen Standardmenü begrüßt dich eine lebendige Szene: Höhle, Nether, End, schwebende Insel oder Winterwald. Rechts oben siehst du, welche Freunde gerade spielen – ein Klick und du bist dabei.</p>
+          <ul class="ticks"><li>Szenen aus echten Minecraft-Blöcken</li><li>Freunde direkt im Menü</li><li>Mit einem Klick auf ihren Server</li></ul>
+        </div>
+      </article>
+
+      <article class="slide feature" data-slide="2">
+        <figure class="shots">
+          <img class="shot main" src="/s/img/shots/cosmetics.webp" alt="Zwei Spieler mit Hut, Flügeln und Pet" width="854" height="480" loading="lazy">
+          <img class="shot side" src="/s/img/shots/emote.webp" alt="Ein Spieler jubelt mit einem Emote" width="854" height="480" loading="lazy">
+        </figure>
+        <div class="feature-text">
+          <span class="kicker">Cosmetics</span>
+          <h2>Hüte, Flügel, Umhänge &amp; Pets</h2>
+          <p>Zieh deinen Charakter an, wie du willst: 3D-Hüte, Flügel, wehende Umhänge, Partikel-Auren und kleine Begleiter. Deine Freunde mit Emberleaf sehen alles live im Spiel.</p>
+          <ul class="ticks"><li>Umhänge mit Stoff-Physik</li><li>Pets, die dir folgen</li><li>Emotes mit Taste B</li></ul>
+        </div>
+      </article>
+
+      <article class="slide feature" data-slide="3">
+        <figure class="shots">
+          <img class="shot main" src="/s/img/shots/chat.webp" alt="Lagerfeuer-Chat mit Tic-Tac-Toe im Spiel" width="854" height="480" loading="lazy">
+          <img class="shot side" src="/s/img/shots/friends.webp" alt="Freundesliste mit Online-Status" width="854" height="480" loading="lazy">
+        </figure>
+        <div class="feature-text">
+          <span class="kicker">Lagerfeuer</span>
+          <h2>Freunde, Chat und Party</h2>
+          <p>Das Lagerfeuer verbindet alle Emberleaf-Spieler: Freundesliste, Chats mit Bildern und Mini-Spielen und Partys, die zusammen von Server zu Server ziehen. Im Launcher, im Spiel mit Taste U und auf dem Handy.</p>
+          <ul class="ticks"><li>Sehen, wer wo spielt</li><li>Tic-Tac-Toe im Chat</li><li>Die Party folgt dem Leiter</li></ul>
+        </div>
+      </article>
+
+      <article class="slide feature" data-slide="4">
+        <figure class="shots">
+          <img class="shot main" src="/s/img/shots/shader.webp" alt="Sonnenuntergang mit dem Glut-Shader" width="854" height="480" loading="lazy">
+          <img class="shot side" src="/s/img/shots/world.webp" alt="Landschaft mit dem Emberleaf-Texturenpaket" width="854" height="480" loading="lazy">
+        </figure>
+        <div class="feature-text">
+          <span class="kicker">Texturen &amp; Shader</span>
+          <h2>Schön, ohne Bastelei</h2>
+          <p>Emberleaf richtet alles für dich ein: ein großes Texturenpaket aus beliebten Packs, die passenden Mods und den eigenen Glut-Shader mit warmem Licht. Einmal „Spielen“ drücken, fertig.</p>
+          <ul class="ticks"><li>Glut-Shader</li><li>Iris &amp; Sodium schon dabei</li><li>Updates kommen von selbst</li></ul>
+        </div>
+      </article>
+
+      <ol class="dots" aria-hidden="true"><li></li><li></li><li></li><li></li><li></li></ol>
+    </div>
+  </section>
+
+  <section class="more" aria-labelledby="more-title">
+    <h2 id="more-title">Und noch viel mehr</h2>
+    <div class="cards">
+      <figure class="card"><img src="/s/img/shots/emote-wheel.webp" alt="Das Emote-Rad" width="854" height="480" loading="lazy"><figcaption><b>Emote-Rad</b>Winken, tanzen, jubeln – alle sehen es.</figcaption></figure>
+      <figure class="card"><img src="/s/img/shots/settings.webp" alt="Emberleaf-Einstellungen im Spiel" width="854" height="480" loading="lazy"><figcaption><b>Module</b>Zoom, Fullbright, Sprinten umschalten und viele mehr (rechte Shift-Taste).</figcaption></figure>
+      <figure class="card"><img src="/s/img/shots/tools.webp" alt="Werkzeuge im Spiel" width="854" height="480" loading="lazy"><figcaption><b>Werkzeuge</b>Farbcodes, MOTD, Köpfe, Bücher, Banner und mehr – direkt im Spiel.</figcaption></figure>
+      <figure class="card"><img src="/s/img/shots/skins.webp" alt="Skin-Bibliothek im Spiel" width="854" height="480" loading="lazy"><figcaption><b>Skins</b>Deine Skin-Bibliothek, wechseln ohne Neustart.</figcaption></figure>
+      <figure class="card"><img src="/s/img/shots/hud.webp" alt="HUD mit Spielzeit und Effekten" width="854" height="480" loading="lazy"><figcaption><b>HUD</b>FPS, Koordinaten, Effekte, Spielzeit – so wie du es magst.</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- 2 · Zoom ins Ahornblatt: darin liegt der Download -->
+  <section class="scene zoom" id="download" data-scene="zoom" aria-label="Download">
+    <div class="stage">
+      <div class="room">
+        <div class="room-inner">
+          <img class="room-leaf" src="/s/img/leaf.svg" alt="" width="72" height="79">
+          <h2>Emberleaf herunterladen</h2>
+          <p class="lead">Kostenlos · für Windows 10 und 11</p>
+          <a class="btn primary huge" id="dl-btn" href="#download" aria-disabled="true">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3h2v10l3.5-3.5 1.4 1.4L12 16.8 6.1 10.9l1.4-1.4L11 13Z M5 18h14v2H5Z" fill="currentColor"/></svg>
+            <span id="dl-label">Emberleaf.exe</span>
+          </a>
+          <p class="dl-meta" id="dl-meta">Lädt …</p>
+          <ol class="steps">
+            <li><b>Herunterladen</b>und die Datei öffnen.</li>
+            <li><b>Windows fragt nach?</b>„Weitere Informationen“ → „Trotzdem ausführen“.</li>
+            <li><b>Anmelden</b>mit deinem Microsoft-Konto.</li>
+            <li><b>Spielen</b>drücken. Den Rest macht Emberleaf.</li>
+          </ol>
+          <div class="notes-card" id="latest-notes" hidden></div>
+          <p class="req">Du brauchst Minecraft: Java Edition (gekauft) und beim ersten Start Internet.</p>
+        </div>
+      </div>
+      <svg class="cover" id="cover" aria-hidden="true">
+        <path class="cover-fill" fill-rule="evenodd"/>
+        <path class="cover-glow" fill="none"/>
+        <path class="cover-line" fill="none"/>
+        <path class="cover-veins" fill="none"/>
+      </svg>
+      <p class="zoom-title" aria-hidden="true">Bereit? Dann ab ins Blatt.</p>
+    </div>
+  </section>
+
+  <section class="releases" id="releases" aria-labelledby="releases-title">
+    <h2 id="releases-title">Releases</h2>
+    <p class="section-lead">Jede neue Version kommt automatisch zu allen – mit einer kleinen Meldung im Launcher.</p>
+    <div class="release-list" id="release-list"><p class="muted">Lädt …</p></div>
+  </section>
+
+  <section class="packs" id="packs" aria-labelledby="packs-title">
+    <span class="kicker">Bald</span>
+    <h2 id="packs-title">Packs</h2>
+    <p class="section-lead">Später holst du dir hier Packs mit neuen Cosmetics, Emotes und Menü-Szenen. Sie landen über dein Emberleaf-Konto direkt bei dir im Spiel.</p>
+    <div class="pack-grid">
+      <div class="pack"><div class="pack-art art-cosmetic" aria-hidden="true"></div><b>Cosmetic-Packs</b><span>Hüte, Flügel, Umhänge und Pets im Set.</span><em>Bald</em></div>
+      <div class="pack"><div class="pack-art art-emote" aria-hidden="true"></div><b>Emote-Packs</b><span>Neue Tänze und Gesten fürs Emote-Rad.</span><em>Bald</em></div>
+      <div class="pack"><div class="pack-art art-scene" aria-hidden="true"></div><b>Menü-Szenen</b><span>Neue Welten für deinen Startbildschirm.</span><em>Bald</em></div>
+    </div>
+  </section>
+
+  <section class="join" id="konto" aria-labelledby="join-title">
+    <div class="join-card">
+      <img src="/s/img/leaf.svg" alt="" width="56" height="62">
+      <div>
+        <h2 id="join-title">Mit Emberleaf beitreten</h2>
+        <p id="join-text">Ein extra Konto brauchst du nicht: Dein Emberleaf ist dein Konto. Klick im Launcher oben auf <b>Webseite</b>, dann bist du hier automatisch angemeldet. So kommen Packs später direkt zu dir.</p>
+      </div>
+      <button class="btn primary" type="button" data-login id="join-btn">Anmelden</button>
+    </div>
+  </section>
+
+  <section class="legal" id="rechtliches" aria-labelledby="legal-title">
+    <h2 id="legal-title">Rechtliches</h2>
+    <div class="legal-list">
+      <details id="bedingungen">
+        <summary>Nutzungsbedingungen</summary>
+        <div class="legal-text">
+          <p><b>Stand: November 2026</b></p>
+          <p>Emberleaf ist ein kostenloses Fan-Projekt und befindet sich in der Alpha-Phase. Du nutzt den Launcher, die Mod und das Lagerfeuer so, wie sie sind. Fehler können passieren, und einzelne Funktionen können sich ändern oder wegfallen.</p>
+          <ol>
+            <li><b>Minecraft.</b> Für Emberleaf brauchst du eine gekaufte Minecraft: Java Edition und ein Microsoft-Konto. Es gelten außerdem die Minecraft-EULA und die Nutzungsrichtlinien von Mojang.</li>
+            <li><b>Fair bleiben.</b> Emberleaf ist kein Cheat-Client. Nutze ihn nicht, um auf Servern gegen deren Regeln zu verstoßen.</li>
+            <li><b>Lagerfeuer.</b> Im Chat und in Gruppen gilt: freundlich bleiben, nichts Verbotenes, keine Beleidigungen, kein Spam, keine fremden Bilder ohne Erlaubnis. Wer sich nicht daran hält, kann vom Lagerfeuer ausgeschlossen werden.</li>
+            <li><b>Updates.</b> Emberleaf aktualisiert sich selbst. Neue Versionen kommen nur von dieser Webseite.</li>
+            <li><b>Packs.</b> Kaufbare Packs gibt es noch nicht. Bevor es sie gibt, ergänzen wir hier die Bedingungen dafür.</li>
+            <li><b>Haftung.</b> Für Schäden haften wir nur bei Vorsatz und grober Fahrlässigkeit, soweit das Gesetz das erlaubt. Mach von wichtigen Welten am besten Sicherungen.</li>
+          </ol>
+        </div>
+      </details>
+      <details id="datenschutz">
+        <summary>Datenschutz</summary>
+        <div class="legal-text">
+          <p><b>Kurz gesagt:</b> Wir speichern nur, was Emberleaf zum Funktionieren braucht. Keine Werbung, kein Tracking, keine Cookies.</p>
+          <h3>Was gespeichert wird</h3>
+          <ul>
+            <li><b>Konto:</b> dein Minecraft-Name und deine Minecraft-ID (UUID). Bei der Anmeldung bestätigt Mojang, dass das Konto dir gehört. Dein Passwort und dein Microsoft-Token sehen wir nie.</li>
+            <li><b>Lagerfeuer:</b> deine Freundesliste, Freundschaftsanfragen, Chat-Nachrichten und Bilder (die letzten 1000 Nachrichten pro Chat), Partys, dein Outfit, deine Abzeichen, deine Spielzeit und – solange du online bist – der Server, auf dem du spielst. Das sehen nur deine Freunde.</li>
+            <li><b>Anmeldungen:</b> Anmelde-Schlüssel für Launcher, Spiel, Handy und Webseite. Sie laufen nach 30 bzw. 180 Tagen ab.</li>
+            <li><b>Webseite:</b> Wenn du dich hier anmeldest, merkt sich dein Browser die Anmeldung im lokalen Speicher. Abmelden löscht sie.</li>
+          </ul>
+          <h3>Wo die Daten liegen</h3>
+          <p>Webseite und Lagerfeuer laufen bei Cloudflare (Cloudflare, Inc., 101 Townsend St, San Francisco, USA). Cloudflare verarbeitet dabei technisch nötige Daten wie deine IP-Adresse, um die Seite auszuliefern und vor Angriffen zu schützen. Skins und Profile werden bei Mojang abgefragt.</p>
+          <h3>Deine Rechte</h3>
+          <p>Du kannst Auskunft über deine Daten verlangen und sie löschen lassen. Schreib dafür an die Adresse im Impressum. Du kannst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren.</p>
+        </div>
+      </details>
+      <details id="impressum">
+        <summary>Impressum</summary>
+        <div class="legal-text">
+          <p><b>Angaben gemäß § 5 DDG</b></p>
+          <p class="todo">[Vor- und Nachname]<br>[Straße und Hausnummer]<br>[Postleitzahl und Ort]</p>
+          <p><b>Kontakt</b><br><span class="todo">[E-Mail-Adresse]</span></p>
+          <p>Emberleaf ist ein privates Fan-Projekt.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <p class="disclaimer">KEIN OFFIZIELLES MINECRAFT-PRODUKT. NICHT VON MOJANG ODER MICROSOFT GENEHMIGT ODER MIT IHNEN VERBUNDEN.</p>
+  <p class="foot-links"><a href="#bedingungen" data-open>Nutzungsbedingungen</a><a href="#datenschutz" data-open>Datenschutz</a><a href="#impressum" data-open>Impressum</a><a href="/app/">Handy-App</a></p>
+  <p class="muted">© 2026 Emberleaf · Minecraft ist eine Marke von Mojang Synergies AB.</p>
+</footer>
+
+<dialog class="login" id="login-dialog" aria-labelledby="login-title">
+  <form method="dialog" class="login-form" id="login-form">
+    <img src="/s/img/leaf.svg" alt="" width="48" height="53">
+    <h2 id="login-title">Mit Emberleaf anmelden</h2>
+    <p><b>Am schnellsten:</b> Öffne den Emberleaf-Launcher und klick oben auf <b>Webseite</b>. Dann bist du hier sofort angemeldet.</p>
+    <p class="muted">Oder: Launcher → Freunde → <b>Handy koppeln</b> und den Code hier eintippen.</p>
+    <label class="code-label" for="login-code">Code</label>
+    <input id="login-code" name="code" autocomplete="one-time-code" inputmode="text" maxlength="7" placeholder="ABC 123" spellcheck="false">
+    <p class="form-error" id="login-error" role="alert"></p>
+    <div class="login-actions">
+      <button class="btn ghost" value="cancel" formnovalidate>Abbrechen</button>
+      <button class="btn primary" id="login-submit" value="ok">Anmelden</button>
+    </div>
+  </form>
+</dialog>
+</body>
+</html>

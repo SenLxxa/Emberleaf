@@ -1,4 +1,4 @@
-# Nur für Weg B in ANLEITUNG.md (npx wrangler deploy)
+# Webseite + Lagerfeuer bei Cloudflare. Hochladen mit tools/deploy.ps1 (legt Datenbank und Datei-Speicher selbst an).
 name = "lagerfeuer"
 main = "worker.js"
 compatibility_date = "2025-06-01"
@@ -8,6 +8,12 @@ binding = "DB"
 database_name = "lagerfeuer"
 database_id = "9be33f1a-c545-4da4-ac71-72ae88ab4128"
 
+# Datei-Speicher für die Emberleaf-Versionen (exe, Mod, Shader), die auf der Webseite hochgeladen werden
+[[kv_namespaces]]
+binding = "FILES"
+id = "noch-nicht-angelegt"
+
 [vars]
-# Wer Emberleaf-Updates an alle verteilen darf (dein Minecraft-Name)
-UPDATE_OWNER = "SenLxca"
+# Wer auf der Webseite Updates hochladen darf: die feste Minecraft-ID (UUID) von SenLxca.
+# Die ID bleibt gleich, auch wenn sich der Name ändert (ein Name ginge auch, aber Namen können neu vergeben werden).
+UPDATE_OWNER = "004910347cbb4a3fa020e611711bb4f3"

@@ -397,11 +397,24 @@ function showNews() {
       <li><b>Emberleaf Glut</b> – eigener Shader. Iris wird automatisch installiert.</li>
       <li><b>Minimap &amp; HUD</b> – alles im Emberleaf-Menü (Rechte Shift-Taste).</li>
       <li><b>Skins</b> – speichern und mit einem Klick wechseln, hier und im Spiel.</li>
-      <li><b>Auto-Updates</b> – neue Emberleaf-Versionen kommen von GitHub zu allen Freunden, mit Meldung „Jetzt neu starten“.</li>
+      <li><b>Auto-Updates</b> – neue Emberleaf-Versionen kommen von der Emberleaf-Webseite zu allen Freunden, mit Meldung „Jetzt neu starten“.</li>
     </ul>
     <div class="modal-actions"><button class="btn primary" data-close>Cool!</button></div>`);
 }
 $("#news-btn").addEventListener("click", showNews);
+// "Webseite": öffnet die Emberleaf-Seite im Browser, mit dem eigenen Konto schon angemeldet
+$("#web-btn").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    await api("open_website");
+    toast("Die Emberleaf-Webseite geht im Browser auf.");
+  } catch (err) {
+    toast(err.message, "error");
+  } finally {
+    setTimeout(() => { btn.disabled = false; }, 1500);
+  }
+});
 try { $("#news-dot").hidden = localStorage.getItem("emberleaf.news") === NEWS_VERSION; } catch { $("#news-dot").hidden = false; }
 const friendsPage = createFriends({ state, login: openLoginDialog, join: joinServer, onFriends: showFriendsOnIsland });
 const skinsPage = createSkins({ state, login: openLoginDialog, onApplied: () => loadSkin() });

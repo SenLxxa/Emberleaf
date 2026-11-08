@@ -123,6 +123,14 @@ h1, h2, h3 { font-family: var(--pixel); font-weight: 600; letter-spacing: 0.3px;
 #account-head { width: 24px; height: 24px; image-rendering: pixelated; background: #5b4334; }
 .account-dot { width: 8px; height: 8px; background: #8d7865; box-shadow: 0 0 0 2px var(--edge); }
 .account-dot.on { background: #7ddc5a; box-shadow: 0 0 0 2px var(--edge), 0 0 8px #7ddc5a; }
+.web-btn {
+  display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 12px;
+  border: 2px solid var(--edge); border-radius: 4px; background: #3a2a20; box-shadow: var(--bevel);
+  color: var(--text-soft); font-weight: 800; transition: background 0.15s, color 0.15s;
+}
+.web-btn svg { width: 15px; height: 15px; shape-rendering: crispEdges; color: var(--ember-hi); }
+.web-btn:hover { background: #4a362a; color: var(--text); }
+.web-btn:disabled { opacity: 0.6; }
 .icon-btn, .win-controls button {
   width: 36px;
   height: 36px;

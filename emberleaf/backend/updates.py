@@ -3,8 +3,8 @@
 Every file carries its version in the name (emberleaf-client-1.0.1.jar, Emberleaf-Glut-1.0.0.zip). The launcher
 uses the newest copy it has: the one bundled with Emberleaf or one downloaded as an update.
 
-New versions are GitHub releases (made by tools/release.ps1). Every launcher looks at the newest release shortly
-after it starts and every 30 minutes:
+New versions come from the Emberleaf website (the owner uploads them on <SITE_URL>/upload). Every launcher asks
+<SITE_URL>/v1/update for the newest version shortly after it starts and every 30 minutes:
 - client mod and shader: newer files go to DATA_DIR/updates/<kind> and are used from the next game start
 - the launcher itself (Emberleaf.exe): the new exe is downloaded next to the running one, the player gets a
   message and restarts right away or later (the next start installs it)
@@ -23,7 +23,7 @@ import requests
 
 from . import accounts, storage
 from .storage import UserError
-from .version import APP_VERSION, GITHUB_REPO, GITHUB_URL, OWNER_NAME, USER_AGENT
+from .version import APP_VERSION, OWNER_NAME, SITE_URL as _SITE_URL, USER_AGENT
 
 APP_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
 BUNDLED = {
@@ -42,9 +42,12 @@ CHECK_EVERY = 30 * 60
 # renamed families: the old files are replaced by the new family (also in options.txt)
 LEGACY = {"Emberleaf-Texturen": ("Emberleaf-64x",)}
 
-RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-MANIFEST_NAME = "emberleaf-release.json"  # lists every file of a release with size and SHA-256
-GITHUB_HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+# EMBERLEAF_SITE_URL only for tests against a local server (wrangler dev)
+SITE_URL = (os.environ.get("EMBERLEAF_SITE_URL") or _SITE_URL).rstrip("/")
+UPDATE_API = f"{SITE_URL}/v1/update"
+DOWNLOAD_PAGE = f"{SITE_URL}/#download"
+SHA256_RE = re.compile(r"[0-9a-f]{64}")
+NAME_OR_EXE_RE = re.compile(r"[A-Za-z0-9._+-]{1,80}\.(?:exe|jar|zip)")
 # The shared exe replaces itself; started from the source (pythonw main.py) only mod and shader are updated.
 FROZEN = bool(getattr(sys, "frozen", False))
 EXE = Path(sys.executable).resolve() if FROZEN else None
@@ -183,7 +186,7 @@ def sync_profile(profile, mc_version):
     storage.write_json(marker_file, marker)
 
 
-# ---------- Updates von GitHub ----------
+# ---------- Updates von der Emberleaf-Webseite ----------
 
 _state_lock = threading.Lock()
 
@@ -224,60 +227,39 @@ def _get(url, **kwargs):
     try:
         return requests.get(url, timeout=20, **kwargs)
     except requests.RequestException as e:
-        raise UserError("GitHub ist gerade nicht erreichbar. Emberleaf versucht es später nochmal.") from e
+        raise UserError("Die Emberleaf-Webseite ist gerade nicht erreichbar. Emberleaf versucht es später nochmal.") from e
 
 
 def _latest_release(state):
-    """The newest GitHub release as {"tag", "version", "notes", "url", "published", "assets"}, None without one."""
-    headers = dict(GITHUB_HEADERS)
-    if state.get("etag") and state.get("github"):
-        headers["If-None-Match"] = state["etag"]  # unchanged answers don't count against GitHub's limit
-    r = _get(RELEASES_API, headers=headers)
-    if r.status_code == 304:
-        return state["github"]
-    if r.status_code == 404:
-        state.update(etag=None, github=None)
-        return None
-    if r.status_code in (403, 429):
-        raise UserError("GitHub bremst gerade (zu viele Anfragen). Emberleaf versucht es später nochmal.")
+    """Asks the website for the newest version. Fills state["release"] ({"tag", "version", "notes", "url",
+    "published", "assets"}) and state["manifest"] (its files with size and SHA-256); None without a version."""
+    r = _get(UPDATE_API, headers={"User-Agent": USER_AGENT})
     if r.status_code != 200:
-        raise UserError(f"GitHub hat mit Fehler {r.status_code} geantwortet.")
-    data = r.json()
-    version = _version_tuple(data.get("tag_name"))
-    release = {
-        "tag": str(data.get("tag_name") or ""),
-        "version": ".".join(map(str, version)) if version else "",
-        "notes": str(data.get("body") or "")[:4000],
-        "url": str(data.get("html_url") or f"{GITHUB_URL}/releases"),
-        "published": data.get("published_at"),
-        "assets": {a["name"]: {"url": a["browser_download_url"], "size": int(a.get("size") or 0)}
-                   for a in data.get("assets", []) if a.get("name") and a.get("browser_download_url")},
-    }
-    state.update(etag=r.headers.get("ETag"), github=release)
-    return release
-
-
-def _manifest(release, state):
-    """The file list of a release (emberleaf-release.json), cached per release."""
-    cached = state.get("manifest")
-    if cached and cached.get("tag") == release["tag"]:
-        return cached
-    asset = release["assets"].get(MANIFEST_NAME)
-    if not asset:
-        return None
-    r = _get(asset["url"], headers={"User-Agent": USER_AGENT})
-    if r.status_code != 200:
-        raise UserError("Die Update-Liste auf GitHub konnte nicht geladen werden.")
+        raise UserError(f"Die Emberleaf-Webseite hat mit Fehler {r.status_code} geantwortet.")
     try:
-        data = r.json()
-    except ValueError as e:
-        raise UserError("Die Update-Liste auf GitHub ist kaputt.") from e
-    files = [f for f in data.get("files", []) if isinstance(f, dict) and f.get("name") in release["assets"]
-             and re.fullmatch(r"[0-9a-f]{64}", str(f.get("sha256", "")))]
-    manifest = {"tag": release["tag"], "version": str(data.get("version") or release["version"]),
-                "notes": str(data.get("notes") or release["notes"])[:4000], "files": files}
-    state["manifest"] = manifest
-    return manifest
+        data = r.json().get("release")
+    except (ValueError, AttributeError) as e:
+        raise UserError("Die Antwort der Emberleaf-Webseite ist kaputt.") from e
+    if not isinstance(data, dict):
+        state.update(release=None, manifest=None)
+        return None
+    version = _version_tuple(data.get("version"))
+    files = [f for f in data.get("files", []) if isinstance(f, dict) and SHA256_RE.fullmatch(str(f.get("sha256", "")))
+             and NAME_OR_EXE_RE.fullmatch(str(f.get("name", ""))) and str(f.get("url") or "").startswith("/download/")]
+    release = {
+        "tag": str(data.get("id") or ""),
+        "version": ".".join(map(str, version)) if version else "",
+        "notes": str(data.get("notes") or "")[:4000],
+        "url": DOWNLOAD_PAGE,
+        "published": data.get("published"),
+        "assets": {f["name"]: {"url": SITE_URL + f["url"], "size": int(f.get("size") or 0)} for f in files},
+    }
+    state["release"] = release
+    state["manifest"] = {
+        "tag": release["tag"], "version": release["version"], "notes": release["notes"],
+        "files": [{"name": f["name"], "kind": f.get("kind"), "size": int(f.get("size") or 0), "sha256": f["sha256"]} for f in files],
+    }
+    return release
 
 
 def _fetch(url, target, sha256, size, label):
@@ -289,7 +271,7 @@ def _fetch(url, target, sha256, size, label):
     try:
         with requests.get(url, headers={"User-Agent": USER_AGENT}, stream=True, timeout=30) as r:
             if r.status_code != 200:
-                raise UserError(f"{label} konnte nicht von GitHub geladen werden (Fehler {r.status_code}).")
+                raise UserError(f"{label} konnte nicht von der Emberleaf-Webseite geladen werden (Fehler {r.status_code}).")
             with tmp.open("wb") as out:
                 for block in r.iter_content(256 * 1024):
                     out.write(block)
@@ -299,7 +281,7 @@ def _fetch(url, target, sha256, size, label):
                         _status["progress"] = min(done / size, 1.0)
     except requests.RequestException as e:
         tmp.unlink(missing_ok=True)
-        raise UserError("GitHub ist gerade nicht erreichbar. Emberleaf versucht es später nochmal.") from e
+        raise UserError("Die Emberleaf-Webseite ist gerade nicht erreichbar. Emberleaf versucht es später nochmal.") from e
     except UserError:
         tmp.unlink(missing_ok=True)
         raise
@@ -359,7 +341,7 @@ def _update_launcher(manifest, release, state):
         _fetch(release["assets"][exe["name"]]["url"], PENDING_EXE, exe["sha256"], int(exe.get("size") or 0),
                f"Emberleaf {manifest['version']}")
     except OSError as e:
-        raise UserError(f"Emberleaf darf in seinem Ordner nichts speichern. Lade die neue Version auf {GITHUB_URL}/releases.") from e
+        raise UserError(f"Emberleaf darf in seinem Ordner nichts speichern. Lade die neue Version auf {DOWNLOAD_PAGE}") from e
     return {"version": manifest["version"], "notes": manifest["notes"], "sha256": exe["sha256"],
             "size": PENDING_EXE.stat().st_size, "url": release["url"]}
 
@@ -373,7 +355,7 @@ def _is_owner():
 
 
 def check(force=False):
-    """Looks at the newest GitHub release and downloads everything that is newer than what we have."""
+    """Asks the website for the newest version and downloads everything that is newer than what we have."""
     state = _read_state()
     if not force and time.time() - (state.get("checked") or 0) < 60:
         return {"state": "ok", **status()}
@@ -385,20 +367,19 @@ def check(force=False):
         _merge_state(changes)  # the mod reads "owner" for the founder badge
         release = _latest_release(state)
         updated, pending = [], None
-        if release and _manifest(release, state):
+        if release:
             manifest = state["manifest"]
             updated = _update_files(manifest, release)
             pending = _update_launcher(manifest, release, state)
             if updated and not pending:
                 changes["news"] = {"kind": "files", "version": manifest["version"], "notes": manifest["notes"],
                                    "files": updated, "shown": False, "at": time.time()}
-        changes.update(etag=state.get("etag"), github=state.get("github"), manifest=state.get("manifest"),
-                       pending=pending, checked=time.time())
-        _merge_state(changes)
+        changes.update(release=state.get("release"), manifest=state.get("manifest"), pending=pending, checked=time.time())
+        _merge_state(changes, drop=("etag", "github"))  # left over from the GitHub updates (up to 0.0.7)
         _status.update(state="idle", message="", progress=1.0)
         return {"state": "ok", "new": updated, **status()}
     except UserError as e:
-        _merge_state({"etag": state.get("etag"), "github": state.get("github"), "checked": time.time()})
+        _merge_state({"checked": time.time()})
         _status.update(state="error", message=str(e))
         raise
     finally:
@@ -407,16 +388,16 @@ def check(force=False):
 
 def status():
     state = _read_state()
-    github = state.get("github") or {}
-    latest = (state.get("manifest") or {}).get("version") or github.get("version")
+    release = state.get("release") or {}
+    latest = (state.get("manifest") or {}).get("version") or release.get("version")
     pending = _pending(state)
     news = state.get("news")
     return {
         "status": dict(_status), "local": local_summary(), "owner": bool(state.get("owner")),
-        "app_version": APP_VERSION, "latest": latest, "release_url": github.get("url") or f"{GITHUB_URL}/releases",
+        "app_version": APP_VERSION, "latest": latest, "release_url": DOWNLOAD_PAGE,
         "newer": bool(latest and (_version_tuple(latest) or ()) > APP_TUPLE),
         "pending": {k: pending.get(k) for k in ("version", "notes")} if pending else None,
-        "self_update": FROZEN, "checked": state.get("checked"), "repo": GITHUB_URL,
+        "self_update": FROZEN, "checked": state.get("checked"), "site": SITE_URL,
         "news": news if isinstance(news, dict) and not news.get("shown") else None,
     }
 
@@ -478,7 +459,7 @@ def install():
         _swap()
     except OSError as e:
         raise UserError("Emberleaf konnte sich nicht selbst ersetzen (ist der Ordner schreibgeschützt?). "
-                        f"Lade die neue Version auf {GITHUB_URL}/releases.") from e
+                        f"Lade die neue Version auf {DOWNLOAD_PAGE}") from e
     _merge_state({"news": {"kind": "launcher", "version": pending["version"], "notes": pending.get("notes", ""),
                            "shown": False, "at": time.time()}}, drop=("pending",))
     _restart()

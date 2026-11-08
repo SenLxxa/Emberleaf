@@ -55,10 +55,11 @@ const SCHEMA = [
 	"CREATE TABLE IF NOT EXISTS friendships (a TEXT NOT NULL, b TEXT NOT NULL, created INTEGER NOT NULL, PRIMARY KEY (a, b))",
 	`CREATE TABLE IF NOT EXISTS friend_requests (from_uuid TEXT NOT NULL, to_uuid TEXT NOT NULL, created INTEGER NOT NULL,
 		PRIMARY KEY (from_uuid, to_uuid))`,
-	`CREATE TABLE IF NOT EXISTS releases (id TEXT PRIMARY KEY, notes TEXT, files TEXT NOT NULL,
-		published INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, by TEXT NOT NULL)`,
-	`CREATE TABLE IF NOT EXISTS release_chunks (release TEXT NOT NULL, file TEXT NOT NULL, part INTEGER NOT NULL,
-		data BLOB NOT NULL, PRIMARY KEY (release, file, part))`,
+	// Emberleaf-Versionen der Webseite: die Dateien selbst liegen in KV (Binding "FILES"), hier nur die Liste
+	`CREATE TABLE IF NOT EXISTS site_releases (id TEXT PRIMARY KEY, version TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
+		files TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'draft', created INTEGER NOT NULL, published INTEGER, by TEXT NOT NULL)`,
+	`CREATE TABLE IF NOT EXISTS site_release_parts (release TEXT NOT NULL, file TEXT NOT NULL, part INTEGER NOT NULL,
+		size INTEGER NOT NULL, PRIMARY KEY (release, file, part))`,
 	`CREATE TABLE IF NOT EXISTS stats (uuid TEXT PRIMARY KEY, playtime INTEGER NOT NULL DEFAULT 0, today INTEGER NOT NULL DEFAULT 0,
 		badges TEXT NOT NULL DEFAULT '[]', contrail TEXT, updated INTEGER NOT NULL DEFAULT 0)`,
 	"CREATE TABLE IF NOT EXISTS emotes (uuid TEXT PRIMARY KEY, emote TEXT NOT NULL, started INTEGER NOT NULL)",
@@ -107,14 +108,18 @@ const isOnline = (row, t) => Boolean(row.online) && t - row.last_seen < ONLINE_S
 const intIn = (value, min, max) => (Number.isInteger(value) && value >= min && value <= max ? value : null);
 
 export default {
-	async fetch(request, env) {
+	async fetch(request, env, ctx) {
 		try {
 			const url = new URL(request.url);
-			// die Handy-App braucht keine Datenbank, um sich zu zeigen
-			if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/app" || url.pathname.startsWith("/app/"))) return appFile(url);
+			// Webseite und Handy-App brauchen keine Datenbank, um sich zu zeigen
+			if (request.method === "GET" || request.method === "HEAD") {
+				const page = siteFile(request, url);
+				if (page) return page;
+				if (url.pathname === "/app" || url.pathname.startsWith("/app/")) return appFile(request, url);
+			}
 			if (!env.DB) return json({ error: "Die Datenbank ist nicht verbunden (D1-Bindung „DB“ fehlt)." }, 500);
 			await ensureSchema(env);
-			return await route(request, env, url);
+			return await route(request, env, url, ctx);
 		} catch (e) {
 			if (e instanceof HttpError) return json({ error: e.message }, e.status);
 			console.error(e);
@@ -123,14 +128,18 @@ export default {
 	},
 };
 
-async function route(request, env, url) {
+async function route(request, env, url, ctx) {
 	const path = url.pathname.replace(/\/+$/, "");
 	const method = request.method;
-	if (path === "/v1/health") return json({ ok: true, name: "Emberleaf Lagerfeuer", app: true });
+	if (path === "/v1/health") return json({ ok: true, name: "Emberleaf Lagerfeuer", app: true, site: true });
 	if (path === "/v1/auth" && method === "POST") return auth(request, env);
 	if (path === "/v1/pair/claim" && method === "POST") return pairClaim(request, env);
 	if (method === "GET" && path.startsWith("/v1/image/")) return getImage(path.slice("/v1/image/".length), env);
 	if (method === "GET" && path.startsWith("/v1/skin/")) return getSkin(path.slice("/v1/skin/".length));
+	// Updates und Downloads sind öffentlich: Launcher ohne Anmeldung und die Webseite holen sie sich auch
+	if (method === "GET" && path === "/v1/update") return latestRelease(request, env);
+	if (method === "GET" && path === "/v1/releases") return listReleases(env);
+	if ((method === "GET" || method === "HEAD") && path.startsWith("/download/")) return download(request, path, env, ctx);
 
 	const me = await authenticate(request, env);
 	switch (`${method} ${path}`) {
@@ -166,11 +175,10 @@ async function route(request, env, url) {
 		case "POST /v1/party/leave": return partyLeave(env, me);
 		case "POST /v1/party/kick": return partyKick(request, env, me);
 		case "POST /v1/pair/start": return pairStart(url, env, me);
-		case "GET /v1/update": return latestRelease(env, me);
-		case "GET /v1/update/file": return releaseChunk(url, env);
 		case "POST /v1/update/begin": return beginRelease(request, env, me);
-		case "PUT /v1/update/chunk": return putChunk(request, url, env, me);
+		case "PUT /v1/update/part": return putPart(request, url, env, me);
 		case "POST /v1/update/publish": return publishRelease(request, env, me);
+		case "POST /v1/update/discard": return discardRelease(request, env, me);
 		default: throw new HttpError(404, "Unbekannter Pfad");
 	}
 }
@@ -1052,134 +1060,262 @@ async function partyKick(request, env, me) {
 	return json(await partyState(env, me));
 }
 
-// ---------- Client-Updates ----------
-// Der Besitzer (Variable UPDATE_OWNER = sein Minecraft-Name) lädt neue Emberleaf-Dateien hoch,
-// die Launcher seiner Freunde holen sie sich automatisch. Dateien liegen in 512-KB-Stücken in D1.
+// ---------- Emberleaf-Versionen (Webseite und Auto-Update) ----------
+// Der Besitzer (Variable UPDATE_OWNER = sein Minecraft-Name) lädt neue Versionen auf der Webseite hoch (/upload).
+// Die Dateien liegen in 8-MB-Stücken in Workers KV (Binding "FILES"), die Liste der Versionen in D1.
+// Launcher und Webseite fragen /v1/update nach der neuesten Version und laden unter /download/<id>/<datei>.
 
-const CHUNK_BYTES = 512 * 1024;
-const MAX_FILE_BYTES = 150 * 1024 * 1024;
-const FILE_KINDS = ["mod", "resourcepack", "shaderpack"];
-const FILE_RE = /^[A-Za-z0-9._+-]{1,80}\.(jar|zip)$/;
+const PART_BYTES = 8 * 1024 * 1024;
+const MAX_FILE_BYTES = 200 * 1024 * 1024;
+const FILE_KINDS = { launcher: ".exe", mod: ".jar", shaderpack: ".zip", resourcepack: ".zip" };
+const FILE_RE = /^[A-Za-z0-9._+-]{1,80}\.(exe|jar|zip)$/;
 const SHA_RE = /^[0-9a-f]{64}$/;
-const VERSION_RE = /^\d{1,4}(\.\d{1,4}){0,3}$/;
+const VERSION_RE = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
 const RELEASE_RE = /^\d{10,16}$/;
-const KEEP_RELEASES = 2;
+const KEEP_DOWNLOADS = 3; // so viele Versionen bleiben herunterladbar, ältere stehen nur noch in der Liste
+const CONTENT_TYPES = { exe: "application/vnd.microsoft.portable-executable", jar: "application/java-archive", zip: "application/zip" };
+const LATEST_SQL = "SELECT * FROM site_releases WHERE state = 'live' ORDER BY published DESC, id DESC LIMIT 1";
 
 function requireOwner(env, me) {
 	if (!String(env.UPDATE_OWNER || "").trim()) {
 		throw new HttpError(403, "Updates verteilen ist aus. Setz im Cloudflare-Dashboard die Variable UPDATE_OWNER auf deinen Minecraft-Namen.");
 	}
-	if (!isOwner(env, me)) throw new HttpError(403, "Nur der Besitzer dieses Lagerfeuers kann Updates verteilen.");
+	if (!isOwner(env, me)) throw new HttpError(403, "Nur der Besitzer von Emberleaf kann Updates hochladen.");
 }
 
-const parts = (size) => Math.ceil(size / CHUNK_BYTES);
-
-async function latestRelease(env, me) {
-	const row = await env.DB.prepare("SELECT id, notes, files, created FROM releases WHERE published = 1 ORDER BY created DESC, id DESC LIMIT 1").first();
-	const release = row ? { id: row.id, notes: row.notes || "", created: row.created, chunkBytes: CHUNK_BYTES, files: JSON.parse(row.files) } : null;
-	return json({ release, owner: isOwner(env, me) });
+function requireFiles(env) {
+	if (!env.FILES) throw new HttpError(500, "Der Datei-Speicher ist nicht verbunden (KV-Bindung „FILES“ fehlt).");
 }
 
-async function releaseChunk(url, env) {
-	const id = url.searchParams.get("release") || "";
-	const file = url.searchParams.get("file") || "";
-	const part = Number(url.searchParams.get("part"));
-	if (!RELEASE_RE.test(id) || !FILE_RE.test(file) || !Number.isInteger(part) || part < 0 || part > 10000) throw new HttpError(400, "Ungültige Anfrage");
-	const row = await env.DB.prepare(
-		"SELECT c.data FROM release_chunks c JOIN releases r ON r.id = c.release WHERE c.release = ?1 AND c.file = ?2 AND c.part = ?3 AND r.published = 1",
-	).bind(id, file, part).first();
-	if (!row) throw new HttpError(404, "Dieses Stück gibt es nicht.");
-	return new Response(new Uint8Array(row.data), { headers: { "content-type": "application/octet-stream", "cache-control": "no-store" } });
+const partCount = (size) => Math.max(1, Math.ceil(size / PART_BYTES));
+const partKey = (id, file, part) => `release/${id}/${file}/${part}`;
+
+function newerVersion(a, b) {
+	const x = String(a).split(".").map(Number);
+	const y = String(b).split(".").map(Number);
+	for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+	return false;
+}
+
+function releaseJson(row) {
+	const live = row.state === "live";
+	return {
+		id: row.id, version: row.version, notes: row.notes || "", published: row.published, available: live,
+		files: JSON.parse(row.files).map((f) => ({ ...f, url: live ? `/download/${row.id}/${f.name}` : null })),
+	};
+}
+
+async function optionalUser(request, env) {
+	if (!(request.headers.get("authorization") || "").startsWith("Bearer ")) return null;
+	try {
+		return await authenticate(request, env);
+	} catch {
+		return null;
+	}
+}
+
+async function latestRelease(request, env) {
+	const row = await env.DB.prepare(LATEST_SQL).first();
+	const me = await optionalUser(request, env);
+	return json({ release: row ? releaseJson(row) : null, owner: Boolean(me && isOwner(env, me)) });
+}
+
+async function listReleases(env) {
+	const { results } = await env.DB.prepare(
+		"SELECT * FROM site_releases WHERE state IN ('live', 'archived') ORDER BY published DESC, id DESC LIMIT 40",
+	).all();
+	return json({ releases: results.map(releaseJson) });
+}
+
+// /download/<id>/<datei> (genau diese Version) oder /download/latest/<art> (z. B. latest/launcher)
+async function download(request, path, env, ctx) {
+	requireFiles(env);
+	const [, , which, what] = path.split("/");
+	let row;
+	let file;
+	if (which === "latest") {
+		row = await env.DB.prepare(LATEST_SQL).first();
+		file = row && JSON.parse(row.files).find((f) => f.kind === what || f.name === what);
+	} else if (RELEASE_RE.test(which || "") && FILE_RE.test(what || "")) {
+		row = await env.DB.prepare("SELECT * FROM site_releases WHERE id = ?1 AND state = 'live'").bind(which).first();
+		file = row && JSON.parse(row.files).find((f) => f.name === what);
+	}
+	if (!row || !file) throw new HttpError(404, "Diese Datei gibt es nicht (mehr).");
+	const headers = {
+		"content-type": CONTENT_TYPES[file.name.split(".").pop()] || "application/octet-stream",
+		"content-disposition": `attachment; filename="${file.name}"`,
+		"cache-control": which === "latest" ? "no-store" : "public, max-age=86400",
+		"x-content-type-options": "nosniff",
+		"x-emberleaf-version": row.version,
+		"x-emberleaf-sha256": file.sha256,
+	};
+	if (request.method === "HEAD") return new Response(null, { headers: { ...headers, "content-length": String(file.size) } });
+	const first = await env.FILES.get(partKey(row.id, file.name, 0), { type: "stream" });
+	if (!first) throw new HttpError(503, "Die Datei wurde gerade erst hochgeladen. Versuch es in einer Minute nochmal.");
+	// FixedLengthStream (nur bei Cloudflare) schickt die Dateigröße mit, dann zeigt der Browser einen Fortschritt
+	const { readable, writable } = typeof FixedLengthStream === "function" ? new FixedLengthStream(file.size) : new TransformStream();
+	const pump = (async () => {
+		let stream = first;
+		for (let part = 0; part < partCount(file.size); part++) {
+			if (part > 0) stream = await env.FILES.get(partKey(row.id, file.name, part), { type: "stream" });
+			if (!stream) throw new Error(`Stück ${part} von ${file.name} fehlt`);
+			await stream.pipeTo(writable, { preventClose: true });
+		}
+		await writable.close();
+	})().catch(async (e) => {
+		console.error(e);
+		try {
+			await writable.abort(e);
+		} catch {
+			// schon abgebrochen
+		}
+	});
+	ctx?.waitUntil?.(pump);
+	return new Response(readable, { headers });
+}
+
+async function deleteReleaseFiles(env, id) {
+	const { results } = await env.DB.prepare("SELECT file, part FROM site_release_parts WHERE release = ?1").bind(id).all();
+	if (env.FILES) await Promise.all(results.map((r) => env.FILES.delete(partKey(id, r.file, r.part))));
+	await env.DB.prepare("DELETE FROM site_release_parts WHERE release = ?1").bind(id).run();
+}
+
+async function cleanupDrafts(env, before) {
+	const { results } = await env.DB.prepare("SELECT id FROM site_releases WHERE state = 'draft' AND created < ?1").bind(before).all();
+	for (const r of results) {
+		await deleteReleaseFiles(env, r.id);
+		await env.DB.prepare("DELETE FROM site_releases WHERE id = ?1").bind(r.id).run();
+	}
 }
 
 async function beginRelease(request, env, me) {
 	requireOwner(env, me);
-	const { notes, files } = await body(request);
+	requireFiles(env);
+	const { version, notes, files } = await body(request);
+	if (!VERSION_RE.test(version || "")) throw new HttpError(400, "Die Version bitte als drei Zahlen mit Punkt, z. B. 0.0.8.");
+	const live = await env.DB.prepare(LATEST_SQL).first();
+	if (live && !newerVersion(version, live.version)) throw new HttpError(400, `Die Version muss höher sein als ${live.version}.`);
 	if (!Array.isArray(files) || files.length < 1 || files.length > 6) throw new HttpError(400, "1 bis 6 Dateien pro Update");
 	const seen = new Set();
 	const clean = files.map((f) => {
 		const size = Number(f?.size);
-		if (!f || !FILE_KINDS.includes(f.kind) || !FILE_RE.test(f.name || "") || !SHA_RE.test(f.sha256 || "")
-			|| !VERSION_RE.test(f.version || "") || !Number.isInteger(size) || size < 1 || size > MAX_FILE_BYTES || seen.has(f.name)) {
+		const kind = f?.kind;
+		if (!f || !Object.hasOwn(FILE_KINDS, kind) || !FILE_RE.test(f.name || "") || !f.name.endsWith(FILE_KINDS[kind])
+			|| !SHA_RE.test(f.sha256 || "") || !Number.isInteger(size) || size < 1 || size > MAX_FILE_BYTES || seen.has(f.name)) {
 			throw new HttpError(400, `Ungültige Datei im Update: ${String(f?.name || "?").slice(0, 80)}`);
 		}
 		seen.add(f.name);
-		return { name: f.name, kind: f.kind, version: f.version, sha256: f.sha256, size };
+		return { name: f.name, kind, size, sha256: f.sha256 };
 	});
+	if (clean.filter((f) => f.kind === "launcher").length > 1) throw new HttpError(400, "Nur eine Launcher-Datei pro Update.");
+	await cleanupDrafts(env, now() - 86400);
 	const id = String(Date.now());
-	const t = now();
-	const stale = "SELECT id FROM releases WHERE published = 0 AND created < ?1";
-	await env.DB.batch([
-		env.DB.prepare(`DELETE FROM release_chunks WHERE release IN (${stale})`).bind(t - 86400),
-		env.DB.prepare("DELETE FROM releases WHERE published = 0 AND created < ?1").bind(t - 86400),
-		env.DB.prepare("INSERT INTO releases (id, notes, files, published, created, by) VALUES (?1, ?2, ?3, 0, ?4, ?5)")
-			.bind(id, String(notes || "").slice(0, 500), JSON.stringify(clean), t, me.uuid),
-	]);
-	return json({ id, chunkBytes: CHUNK_BYTES });
+	await env.DB.prepare("INSERT INTO site_releases (id, version, notes, files, state, created, by) VALUES (?1, ?2, ?3, ?4, 'draft', ?5, ?6)")
+		.bind(id, version, String(notes || "").slice(0, 4000), JSON.stringify(clean), now(), me.uuid).run();
+	return json({ id, partBytes: PART_BYTES });
 }
 
 async function draft(env, id) {
 	if (!RELEASE_RE.test(id || "")) throw new HttpError(400, "Ungültige Update-ID");
-	const row = await env.DB.prepare("SELECT id, files, published FROM releases WHERE id = ?1").bind(id).first();
-	if (!row) throw new HttpError(404, "Dieses Update gibt es nicht.");
-	if (row.published) throw new HttpError(400, "Dieses Update ist schon veröffentlicht.");
-	return { id: row.id, files: JSON.parse(row.files) };
+	const row = await env.DB.prepare("SELECT id, version, files, state FROM site_releases WHERE id = ?1").bind(id).first();
+	if (!row) throw new HttpError(404, "Dieses Update gibt es nicht (mehr).");
+	if (row.state !== "draft") throw new HttpError(400, "Dieses Update ist schon veröffentlicht.");
+	return { id: row.id, version: row.version, files: JSON.parse(row.files) };
 }
 
-async function putChunk(request, url, env, me) {
+async function putPart(request, url, env, me) {
 	requireOwner(env, me);
+	requireFiles(env);
 	const release = await draft(env, url.searchParams.get("release"));
 	const file = release.files.find((f) => f.name === url.searchParams.get("file"));
 	const part = Number(url.searchParams.get("part"));
-	if (!file || !Number.isInteger(part) || part < 0 || part >= parts(file.size)) throw new HttpError(400, "Ungültiges Stück");
-	const data = new Uint8Array(await request.arrayBuffer());
-	const expected = Math.min(CHUNK_BYTES, file.size - part * CHUNK_BYTES);
-	if (data.length !== expected) throw new HttpError(400, `Stück hat ${data.length} statt ${expected} Bytes`);
-	await env.DB.prepare("INSERT OR REPLACE INTO release_chunks (release, file, part, data) VALUES (?1, ?2, ?3, ?4)")
-		.bind(release.id, file.name, part, data).run();
+	if (!file || !Number.isInteger(part) || part < 0 || part >= partCount(file.size)) throw new HttpError(400, "Ungültiges Stück");
+	const data = await request.arrayBuffer();
+	const expected = Math.min(PART_BYTES, file.size - part * PART_BYTES);
+	if (data.byteLength !== expected) throw new HttpError(400, `Stück hat ${data.byteLength} statt ${expected} Bytes`);
+	await env.FILES.put(partKey(release.id, file.name, part), data);
+	await env.DB.prepare("INSERT OR REPLACE INTO site_release_parts (release, file, part, size) VALUES (?1, ?2, ?3, ?4)")
+		.bind(release.id, file.name, part, data.byteLength).run();
 	return json({ ok: true });
 }
 
 async function publishRelease(request, env, me) {
 	requireOwner(env, me);
 	const release = await draft(env, (await body(request)).id);
-	const { results } = await env.DB.prepare("SELECT file, COUNT(*) AS n FROM release_chunks WHERE release = ?1 GROUP BY file").bind(release.id).all();
+	const { results } = await env.DB.prepare("SELECT file, COUNT(*) AS n FROM site_release_parts WHERE release = ?1 GROUP BY file")
+		.bind(release.id).all();
 	for (const f of release.files) {
 		const have = results.find((r) => r.file === f.name)?.n || 0;
-		if (have !== parts(f.size)) throw new HttpError(400, `${f.name} ist noch nicht komplett hochgeladen (${have}/${parts(f.size)}).`);
+		if (have !== partCount(f.size)) throw new HttpError(400, `${f.name} ist noch nicht komplett hochgeladen (${have}/${partCount(f.size)}).`);
 	}
-	await env.DB.prepare("UPDATE releases SET published = 1, created = ?1 WHERE id = ?2").bind(now(), release.id).run();
-	// alte Versionen aufräumen, damit die Datenbank klein bleibt
-	const { results: old } = await env.DB.prepare("SELECT id FROM releases WHERE published = 1 ORDER BY created DESC, id DESC LIMIT -1 OFFSET ?1")
-		.bind(KEEP_RELEASES).all();
-	if (old.length) {
-		await env.DB.batch(old.flatMap((r) => [
-			env.DB.prepare("DELETE FROM release_chunks WHERE release = ?1").bind(r.id),
-			env.DB.prepare("DELETE FROM releases WHERE id = ?1").bind(r.id),
-		]));
+	const live = await env.DB.prepare(LATEST_SQL).first();
+	if (live && !newerVersion(release.version, live.version)) throw new HttpError(400, `Inzwischen ist ${live.version} online. Nimm eine höhere Version.`);
+	await env.DB.prepare("UPDATE site_releases SET state = 'live', published = ?1 WHERE id = ?2").bind(now(), release.id).run();
+	// ältere Versionen: Dateien aufräumen, damit der Speicher klein bleibt; der Eintrag bleibt für die Liste
+	const { results: old } = await env.DB.prepare(
+		"SELECT id FROM site_releases WHERE state = 'live' ORDER BY published DESC, id DESC LIMIT -1 OFFSET ?1",
+	).bind(KEEP_DOWNLOADS).all();
+	for (const r of old) {
+		await deleteReleaseFiles(env, r.id);
+		await env.DB.prepare("UPDATE site_releases SET state = 'archived' WHERE id = ?1").bind(r.id).run();
 	}
-	return json({ ok: true, id: release.id });
+	return json({ ok: true, id: release.id, version: release.version });
 }
 
-// ---------- Handy-App (Web-App zum Installieren, liegt unter /app) ----------
+async function discardRelease(request, env, me) {
+	requireOwner(env, me);
+	const release = await draft(env, (await body(request)).id);
+	await deleteReleaseFiles(env, release.id);
+	await env.DB.prepare("DELETE FROM site_releases WHERE id = ?1").bind(release.id).run();
+	return json({ ok: true });
+}
 
+// ---------- Webseite (/, /upload, Dateien unter /s/) und Handy-App (/app) ----------
+
+const SITE_FILES = /*@SITE_FILES@*/ {};
 const APP_FILES = /*@APP_FILES@*/ {};
+const SITE_PAGES = { "/": "index.html", "/upload": "upload.html" };
+const SITE_CSP = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; "
+	+ "connect-src 'self'; manifest-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
+const APP_CSP = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; "
+	+ "manifest-src 'self'; worker-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'";
+const decoded = new Map();
 
-function appFile(url) {
-	if (url.pathname === "/" || url.pathname === "/app") return Response.redirect(`${url.origin}/app/`, 302);
-	const name = url.pathname.slice("/app/".length) || "index.html";
-	const file = APP_FILES[name];
-	if (!file) return new Response("Nicht gefunden", { status: 404 });
-	const data = file.base64 ? Uint8Array.from(atob(file.base64), (c) => c.charCodeAt(0)) : file.text;
-	const headers = {
-		"content-type": file.type,
-		"cache-control": name === "index.html" || name === "sw.js" ? "no-cache" : "public, max-age=3600",
-		"x-content-type-options": "nosniff",
-	};
-	if (name === "index.html") {
-		headers["content-security-policy"] = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; "
-			+ "manifest-src 'self'; worker-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'";
+function staticResponse(request, key, file, { page = false, csp = "" } = {}) {
+	const etag = file.etag ? `"${file.etag}"` : null;
+	// Schriften ändern sich nie, alles andere fragt der Browser jedes Mal kurz nach (ETag)
+	const cache = file.type.startsWith("font/") ? "public, max-age=604800" : "no-cache";
+	if (etag && request.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { etag, "cache-control": cache } });
+	let data = file.text;
+	if (file.base64) {
+		data = decoded.get(key);
+		if (!data) {
+			data = Uint8Array.from(atob(file.base64), (c) => c.charCodeAt(0));
+			decoded.set(key, data);
+		}
+	}
+	const headers = { "content-type": file.type, "cache-control": cache, "x-content-type-options": "nosniff" };
+	if (etag) headers.etag = etag;
+	if (page) {
+		headers["content-security-policy"] = csp;
 		headers["referrer-policy"] = "no-referrer";
 	}
 	return new Response(data, { headers });
+}
+
+function siteFile(request, url) {
+	const page = SITE_PAGES[url.pathname.replace(/\/+$/, "") || "/"];
+	const name = page || (url.pathname.startsWith("/s/") ? url.pathname.slice(3) : null);
+	if (!name) return null;
+	const file = SITE_FILES[name];
+	if (!file) return new Response("Nicht gefunden", { status: 404 });
+	return staticResponse(request, `s/${name}`, file, { page: Boolean(page), csp: SITE_CSP });
+}
+
+function appFile(request, url) {
+	if (url.pathname === "/app") return Response.redirect(`${url.origin}/app/`, 302);
+	const name = url.pathname.slice("/app/".length) || "index.html";
+	const file = APP_FILES[name];
+	if (!file) return new Response("Nicht gefunden", { status: 404 });
+	return staticResponse(request, `app/${name}`, file, { page: name === "index.html", csp: APP_CSP });
 }

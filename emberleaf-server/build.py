@@ -1,48 +1,64 @@
-"""Baut worker.js (die eine Datei, die man bei Cloudflare einfügt) aus src/worker.js und der Handy-App in app/.
+"""Baut worker.js (die eine Datei, die zu Cloudflare geht) aus src/worker.js, der Webseite in site/ und der Handy-App in app/.
 
     python build.py
 
-Die App-Dateien landen als Text (bzw. Bilder als Base64) im Worker, er liefert sie unter /app/ aus.
+Die Dateien landen als Text (bzw. Bilder und Schriften als Base64) im Worker:
+die Webseite unter / und /s/, die Handy-App unter /app/.
 """
 import base64
+import hashlib
 import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-APP = ROOT / "app"
 TYPES = {
     ".html": "text/html; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
     ".css": "text/css; charset=utf-8",
     ".webmanifest": "application/manifest+json; charset=utf-8",
+    ".svg": "image/svg+xml",
     ".png": "image/png",
+    ".webp": "image/webp",
+    ".woff2": "font/woff2",
 }
-MARKER = "/*@APP_FILES@*/ {}"
-HEADER = "// GEBAUT AUS src/worker.js UND app/ MIT build.py – Änderungen bitte dort machen.\n"
+BINARY = {".png", ".webp", ".woff2"}
+BUNDLES = {"/*@APP_FILES@*/ {}": ROOT / "app", "/*@SITE_FILES@*/ {}": ROOT / "site"}
+HEADER = "// GEBAUT AUS src/worker.js, site/ UND app/ MIT build.py – Änderungen bitte dort machen.\n"
+LIMIT = 3 * 1024 * 1024  # Cloudflare (kostenlos): höchstens 3 MB Worker
 
 
-def app_files():
+def bundle(folder):
     files = {}
-    for path in sorted(APP.rglob("*")):
+    for path in sorted(folder.rglob("*")):
         if not path.is_file() or path.suffix not in TYPES:
             continue
-        name = path.relative_to(APP).as_posix()
-        if path.suffix == ".png":
-            files[name] = {"type": TYPES[".png"], "base64": base64.b64encode(path.read_bytes()).decode("ascii")}
+        name = path.relative_to(folder).as_posix()
+        data = path.read_bytes()
+        # ETag: der Browser fragt kurz nach und lädt nur neu, wenn sich die Datei geändert hat
+        entry = {"type": TYPES[path.suffix], "etag": hashlib.sha256(data).hexdigest()[:20]}
+        if path.suffix in BINARY:
+            entry["base64"] = base64.b64encode(data).decode("ascii")
         else:
-            files[name] = {"type": TYPES[path.suffix], "text": path.read_text("utf-8")}
+            entry["text"] = data.decode("utf-8")
+        files[name] = entry
     return files
 
 
 def main():
     source = (ROOT / "src" / "worker.js").read_text("utf-8")
-    if source.count(MARKER) != 1:
-        raise SystemExit("Platzhalter für die App fehlt in src/worker.js")
-    files = app_files()
-    blob = json.dumps(files, ensure_ascii=False, separators=(",", ":"))
-    (ROOT / "worker.js").write_text(HEADER + source.replace(MARKER, blob), "utf-8", newline="\n")
-    size = (ROOT / "worker.js").stat().st_size
-    print(f"worker.js gebaut: {len(files)} App-Dateien, {size / 1024:.0f} KB")
+    counts = []
+    for marker, folder in BUNDLES.items():
+        if source.count(marker) != 1:
+            raise SystemExit(f"Platzhalter {marker} fehlt in src/worker.js")
+        files = bundle(folder)
+        counts.append(f"{len(files)} aus {folder.name}/")
+        source = source.replace(marker, json.dumps(files, ensure_ascii=False, separators=(",", ":")))
+    out = ROOT / "worker.js"
+    out.write_text(HEADER + source, "utf-8", newline="\n")
+    size = out.stat().st_size
+    print(f"worker.js gebaut: {', '.join(counts)}, {size / 1024:.0f} KB")
+    if size > LIMIT:
+        raise SystemExit("worker.js ist größer als 3 MB – das nimmt Cloudflare (kostenlos) nicht an.")
 
 
 if __name__ == "__main__":

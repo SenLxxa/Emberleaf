@@ -44,7 +44,9 @@ Betreten eines echten Minecraft-Servers: Mojang bestätigt dem Lagerfeuer, dass 
 
    Speichern bzw. **Deploy**.
 
-   (Emberleaf-Updates laufen inzwischen über GitHub, dafür musst du am Lagerfeuer nichts einstellen.)
+   Für die Webseite mit Updates (nur beim offiziellen Emberleaf nötig): unter **Storage & Databases → KV**
+   einen Namespace `emberleaf-files` anlegen und beim Worker als **KV namespace** mit dem Namen `FILES` verbinden.
+   Ohne ihn laufen Freunde und Chat trotzdem, nur Updates hochladen geht nicht.
 
 6. **Testen:** Öffne `https://lagerfeuer.<dein-name>.workers.dev/v1/health` im Browser
    (die genaue Adresse steht beim Worker unter **Domains & Routes**).
@@ -58,12 +60,16 @@ Betreten eines echten Minecraft-Servers: Mojang bestätigt dem Lagerfeuer, dass 
 
 ## Weg B: mit Wrangler (für Leute mit Node.js)
 
+Am einfachsten mit `tools\deploy.ps1` (macht alles unten von selbst). Von Hand:
+
 ```bash
 npx wrangler login
 npx wrangler d1 create lagerfeuer
+npx wrangler kv namespace create emberleaf-files
+python build.py
 ```
 
-Die ausgegebene `database_id` in `wrangler.toml` eintragen (bei `UPDATE_OWNER` steht schon `SenLxca`), dann:
+Die ausgegebene `database_id` und die KV-`id` in `wrangler.toml` eintragen (bei `UPDATE_OWNER` steht schon die Minecraft-ID von SenLxca), dann:
 
 ```bash
 npx wrangler deploy

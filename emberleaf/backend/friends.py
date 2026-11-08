@@ -243,6 +243,20 @@ def pair_phone():
     return data
 
 
+def website_url(site_url, path="/"):
+    """A page of the Emberleaf website, already logged in with this account when possible (one-time code in the
+    #fragment, which never reaches a server log). Without a Lagerfeuer login, or with another friends server,
+    just the page."""
+    page = site_url.rstrip("/") + path
+    if server_url() != site_url.rstrip("/") or (_session() is None and accounts.public_account() is None):
+        return page
+    try:
+        code = _call("POST", "/v1/pair/start", {})["code"]
+    except (UserError, KeyError):
+        return page
+    return f"{page}#login={code}"
+
+
 def image_url(image_id):
     return f"{server_url()}/v1/image/{image_id}"
 

@@ -1,46 +1,36 @@
-# Veroeffentlicht eine neue Emberleaf-Version auf GitHub. Alle Launcher deiner Freunde laden sie dann von selbst
-# und melden sich mit "Update ist da - Jetzt neu starten / Spaeter".
+# Baut eine neue Emberleaf-Version fuer die Webseite. Hochladen tust du sie dann auf der Webseite unter /upload,
+# danach holen sich alle Launcher das Update von selbst ("Update ist da - Jetzt neu starten / Spaeter").
 #
 # Aufruf aus dem Projektordner (dort, wo emberleaf, emberleaf-mod usw. liegen):
-#   powershell -ExecutionPolicy Bypass -File emberleaf\tools\release.ps1 -Version 0.0.3 -Notes "- Neue Insel`n- Weniger Ruckler"
+#   powershell -ExecutionPolicy Bypass -File emberleaf\tools\release.ps1 -Version 0.0.9 -Notes "- Neue Insel`n- Weniger Ruckler"
 #
 # Was passiert:
 #   1. Versionsnummer in Launcher (backend/version.py) und Mod (gradle.properties) setzen
 #   2. Client-Mod bauen, Shader packen, Emberleaf.exe bauen
-#   3. emberleaf-release.json schreiben (Dateiliste mit SHA-256, daran prueft der Launcher die Downloads)
+#   3. Dateien nach emberleaf\dist\release-<Version> sammeln (mit emberleaf-release.json und notes.md)
 #      und alle Dateien einmal komplett entpacken (tools/verify_build.py)
-#   4. Code committen, Tag v<Version> setzen, zu GitHub pushen und das Release mit allen Dateien anlegen
+#   4. Den Ordner und die Upload-Seite oeffnen: Dateien reinziehen, Text einfuegen, veroeffentlichen
 param(
     [Parameter(Mandatory = $true)] [string]$Version,
     [string]$Notes = "",
     [string]$NotesFile = "",
-    [string]$Tools = (Join-Path $HOME "Emberleaf-Tools"),   # git, gh, node, jdk (ohne Installation)
-    [switch]$SkipBuild,     # nur veroeffentlichen, was schon gebaut ist
-    [switch]$NoPublish      # nur bauen, nichts hochladen
+    [switch]$SkipBuild,     # nur die schon gebauten Dateien einsammeln
+    [switch]$NoOpen         # am Ende nichts oeffnen
 )
 $ErrorActionPreference = "Stop"
 $utf8 = New-Object Text.UTF8Encoding($false)
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $launcher = Join-Path $root "emberleaf"
 $mod = Join-Path $root "emberleaf-mod"
-$git = Join-Path $Tools "git\cmd\git.exe"
-$gh = Join-Path $Tools "gh\bin\gh.exe"
-$env:GH_CONFIG_DIR = Join-Path $Tools "gh-config"
-$env:PATH = (Join-Path $Tools "git\cmd") + ";" + $env:PATH
 
 function Step($text) { Write-Host ""; Write-Host "== $text" -ForegroundColor Yellow }
 function Check($what) { if ($LASTEXITCODE -ne 0) { throw "$what ist fehlgeschlagen (Code $LASTEXITCODE)" } }
 
-if ($Version -notmatch '^\d{1,4}\.\d{1,4}\.\d{1,4}$') { throw "Version bitte als 0.0.3 (drei Zahlen mit Punkt)" }
+if ($Version -notmatch '^\d{1,4}\.\d{1,4}\.\d{1,4}$') { throw "Version bitte als 0.0.9 (drei Zahlen mit Punkt)" }
 if ($NotesFile) { $Notes = [IO.File]::ReadAllText((Resolve-Path $NotesFile), [Text.Encoding]::UTF8) }
 $Notes = $Notes.Replace('`n', "`n").Trim()
-if (-not $NoPublish) {
-    foreach ($tool in $git, $gh) { if (-not (Test-Path $tool)) { throw "$tool fehlt (Werkzeuge liegen in $Tools)" } }
-    & $gh auth status *> $null
-    if ($LASTEXITCODE -ne 0) { throw "Nicht bei GitHub angemeldet: $gh auth login --web" }
-    & $git -C $root rev-parse --verify --quiet "refs/tags/v$Version" *> $null
-    if ($LASTEXITCODE -eq 0) { throw "Version $Version gibt es schon. Nimm eine hoehere Nummer." }
-}
+$site = [regex]::Match([IO.File]::ReadAllText((Join-Path $launcher "backend\version.py")), 'SITE_URL = "([^"]+)"').Groups[1].Value
+if (-not $site) { throw "SITE_URL fehlt in backend\version.py" }
 
 Step "Version $Version eintragen"
 $versionPy = Join-Path $launcher "backend\version.py"
@@ -105,22 +95,14 @@ Step "Dateien pruefen (komplett entpacken)"
 & $python -W ignore (Join-Path $launcher "tools\verify_build.py") $out
 Check "Die Pruefung der Release-Dateien"
 
-if ($NoPublish) { Write-Host "Fertig gebaut (nicht hochgeladen): $out"; exit 0 }
-
-Step "Code zu GitHub pushen"
-& $git -C $root add -A; Check "git add"
-& $git -C $root diff --cached --quiet
-if ($LASTEXITCODE -ne 0) { & $git -C $root commit -q -m "Emberleaf $Version"; Check "git commit" }
-& $git -C $root tag -a "v$Version" -m "Emberleaf $Version"; Check "git tag"
-& $git -C $root push -q origin HEAD; Check "git push"
-& $git -C $root push -q origin "v$Version"; Check "git push (Tag)"
-
-Step "Release auf GitHub anlegen"
-$notesPath = Join-Path $out "notes.md"
 $body = if ($Notes) { $Notes } else { "Neue Emberleaf-Version." }
-[IO.File]::WriteAllText($notesPath, $body, $utf8)
-$assets = Get-ChildItem $out -File | Where-Object { $_.Name -ne "notes.md" } | ForEach-Object { $_.FullName }
-& $gh release create "v$Version" @assets --title "Emberleaf $Version" --notes-file $notesPath --latest --verify-tag
-Check "Das Release"
+[IO.File]::WriteAllText((Join-Path $out "notes.md"), $body, $utf8)
+
 Write-Host ""
-Write-Host "Emberleaf $Version ist veroeffentlicht. Die Launcher deiner Freunde holen es sich in den naechsten 30 Minuten." -ForegroundColor Green
+Write-Host "Emberleaf $Version ist fertig gebaut: $out" -ForegroundColor Green
+Write-Host "Jetzt auf $site/upload hochladen: die Dateien aus dem Ordner reinziehen, den Text aus notes.md einfuegen,"
+Write-Host "Hochladen und veroeffentlichen. Die Launcher holen sich das Update in den naechsten 30 Minuten."
+if (-not $NoOpen) {
+    Start-Process explorer.exe $out
+    Start-Process "$site/upload"
+}

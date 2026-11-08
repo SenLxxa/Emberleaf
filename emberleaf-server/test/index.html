@@ -41,7 +41,14 @@ class Stmt {
   async all() { return { results: this.exec() }; }
   async run() { this.exec(); return { success: true }; }
 }
-const env = { TEST_MODE: "1", UPDATE_OWNER: "senlxca", DB: { prepare: (sql) => new Stmt(sql), batch: async (stmts) => stmts.map((s) => ({ results: s.exec() })) } };
+// Workers KV nachgebaut: Werte als Bytes, lesen auch als Stream
+const kv = new Map();
+const FILES = {
+  async put(key, value) { kv.set(key, new Uint8Array(value instanceof ArrayBuffer ? value : await new Response(value).arrayBuffer())); },
+  async get(key, opts) { const v = kv.get(key); if (!v) return null; return opts?.type === "stream" ? new Blob([v]).stream() : v; },
+  async delete(key) { kv.delete(key); },
+};
+const env = { TEST_MODE: "1", UPDATE_OWNER: "senlxca", FILES, DB: { prepare: (sql) => new Stmt(sql), batch: async (stmts) => stmts.map((s) => ({ results: s.exec() })) } };
 
 async function call(method, path, body, token) {
   const headers = { "content-type": "application/json" };
@@ -58,7 +65,7 @@ const B = { name: "PerryDasHuhn", uuid: "b".repeat(32) };
 try {
   check("health", (await call("GET", "/v1/health")).data.ok === true);
   const tables = db.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")[0].values.map((v) => v[0]);
-  check("Tabellen selbst angelegt", ["players", "sessions", "friendships", "friend_requests", "releases", "release_chunks", "stats", "emotes", "chats",
+  check("Tabellen selbst angelegt", ["players", "sessions", "friendships", "friend_requests", "site_releases", "site_release_parts", "stats", "emotes", "chats",
     "chat_members", "messages", "reactions", "images", "parties", "party_members", "party_invites", "pair_codes"].every((t) => tables.includes(t)), tables.join(", "));
   check("ohne DB-Bindung: klare Meldung", (await worker.fetch(new Request("https://lagerfeuer.test/v1/health"), {})).status === 500);
   check("ohne Anmeldung gesperrt", (await call("GET", "/v1/friends")).status === 401);
@@ -253,7 +260,17 @@ try {
   const page = await worker.fetch(new Request("https://lagerfeuer.test/app/"), {});
   const pageText = await page.text();
   check("App ohne Datenbank erreichbar", page.status === 200 && pageText.includes("app.js") && page.headers.get("content-security-policy").includes("script-src 'self'"));
-  check("Weiterleitung auf /app/", (await worker.fetch(new Request("https://lagerfeuer.test/"), {})).status === 302);
+  check("Weiterleitung /app → /app/", (await worker.fetch(new Request("https://lagerfeuer.test/app"), {})).status === 302);
+  const home = await worker.fetch(new Request("https://lagerfeuer.test/"), {});
+  const homeText = await home.text();
+  check("Webseite unter /", home.status === 200 && homeText.includes("Emberleaf herunterladen") && home.headers.get("content-security-policy").includes("script-src 'self'"));
+  check("Upload-Seite", (await worker.fetch(new Request("https://lagerfeuer.test/upload"), {})).status === 200);
+  const logo = await worker.fetch(new Request("https://lagerfeuer.test/s/img/logo.webp"), {});
+  const logoBytes = new Uint8Array(await logo.arrayBuffer());
+  check("Logo ist ein WebP", logo.headers.get("content-type") === "image/webp" && String.fromCharCode(...logoBytes.slice(8, 12)) === "WEBP");
+  check("Schrift", (await worker.fetch(new Request("https://lagerfeuer.test/s/fonts/nunito.woff2"), {})).headers.get("content-type") === "font/woff2");
+  check("Webseiten-Skript", (await (await worker.fetch(new Request("https://lagerfeuer.test/s/site.js"), {})).text()).includes("zoomFrame"));
+  check("unbekannte Seiten-Datei: 404", (await worker.fetch(new Request("https://lagerfeuer.test/s/gibtsnicht.js"), {})).status === 404);
   const icon = await worker.fetch(new Request("https://lagerfeuer.test/app/icon-192.png"), {});
   const iconBytes = new Uint8Array(await icon.arrayBuffer());
   check("App-Icon ist ein PNG", icon.headers.get("content-type") === "image/png" && iconBytes[1] === 0x50 && iconBytes.length > 1000);
@@ -262,51 +279,75 @@ try {
   check("Abzeichen-Bild", (await worker.fetch(new Request("https://lagerfeuer.test/app/badges/founder.png"), {})).status === 200);
   check("unbekannte App-Datei: 404", (await worker.fetch(new Request("https://lagerfeuer.test/app/gibtsnicht.js"), {})).status === 404);
 
-  // ---------- Client-Updates ----------
-  const none = await call("GET", "/v1/update", undefined, tb);
-  check("noch kein Update", none.status === 200 && none.data.release === null && none.data.owner === false);
+  // ---------- Updates über die Webseite ----------
+  const PART = 8 * 1024 * 1024;
+  const none = await call("GET", "/v1/update");
+  check("noch kein Update (ohne Anmeldung abrufbar)", none.status === 200 && none.data.release === null && none.data.owner === false);
   check("A ist Besitzer", (await call("GET", "/v1/update", undefined, ta)).data.owner === true);
-  const bytes = new Uint8Array(512 * 1024 + 1000).map((_, i) => (i * 7) % 251);
-  const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
-  const files = [{ name: "emberleaf-client-1.0.1.jar", kind: "mod", version: "1.0.1", sha256: digest, size: bytes.length }];
-  check("Freund darf kein Update verteilen", (await call("POST", "/v1/update/begin", { files }, tb)).status === 403);
-  check("kaputte Datei abgelehnt", (await call("POST", "/v1/update/begin", { files: [{ ...files[0], name: "../x.exe" }] }, ta)).status === 400);
-  const begin = await call("POST", "/v1/update/begin", { notes: "Neue Insel", files }, ta);
-  check("Update anlegen", begin.status === 200 && begin.data.chunkBytes === 512 * 1024);
+  check("B ist kein Besitzer", (await call("GET", "/v1/update", undefined, tb)).data.owner === false);
+  const sha = async (data) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", data))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const exe = new Uint8Array(PART + 5000).map((_, i) => (i * 7) % 251);
+  const jar = new Uint8Array(3000).map((_, i) => (i * 13) % 241);
+  const files = [
+    { name: "Emberleaf.exe", kind: "launcher", sha256: await sha(exe), size: exe.length },
+    { name: "emberleaf-client-0.0.8.jar", kind: "mod", sha256: await sha(jar), size: jar.length },
+  ];
+  check("Freund darf kein Update hochladen", (await call("POST", "/v1/update/begin", { version: "0.0.8", files }, tb)).status === 403);
+  check("kaputter Dateiname abgelehnt", (await call("POST", "/v1/update/begin", { version: "0.0.8", files: [{ ...files[1], name: "../x.jar" }] }, ta)).status === 400);
+  check("falsche Endung abgelehnt", (await call("POST", "/v1/update/begin", { version: "0.0.8", files: [{ ...files[0], name: "Emberleaf.zip" }] }, ta)).status === 400);
+  check("Version fehlt: abgelehnt", (await call("POST", "/v1/update/begin", { files }, ta)).status === 400);
+  const begin = await call("POST", "/v1/update/begin", { version: "0.0.8", notes: "- Neue Webseite\n- Updates ohne GitHub", files }, ta);
+  check("Update anlegen", begin.status === 200 && begin.data.partBytes === PART);
   const rid = begin.data.id;
-  const put = async (part, data, token = ta) => {
-    const res = await worker.fetch(new Request(`https://lagerfeuer.test/v1/update/chunk?release=${rid}&file=${files[0].name}&part=${part}`, {
-      method: "PUT", headers: { authorization: `Bearer ${token}` }, body: data }), env);
-    return res.status;
-  };
-  check("Stück 0 hochladen", (await put(0, bytes.slice(0, 512 * 1024))) === 200);
-  check("falsche Stückgröße abgelehnt", (await put(1, bytes.slice(0, 10))) === 400);
+  const put = async (file, part, data, token = ta) => (await worker.fetch(new Request(
+    `https://lagerfeuer.test/v1/update/part?release=${rid}&file=${file}&part=${part}`,
+    { method: "PUT", headers: { authorization: `Bearer ${token}` }, body: data }), env)).status;
+  check("Stück 0 der exe", (await put("Emberleaf.exe", 0, exe.slice(0, PART))) === 200);
+  check("falsche Stückgröße abgelehnt", (await put("Emberleaf.exe", 1, exe.slice(0, 10))) === 400);
+  check("Freund darf keine Stücke hochladen", (await put("Emberleaf.exe", 1, exe.slice(PART), tb)) === 403);
   check("unvollständig: nicht veröffentlichen", (await call("POST", "/v1/update/publish", { id: rid }, ta)).status === 400);
-  check("noch unsichtbar für Freunde", (await call("GET", "/v1/update", undefined, tb)).data.release === null);
-  check("Stück 1 hochladen", (await put(1, bytes.slice(512 * 1024))) === 200);
+  check("Entwurf ist unsichtbar", (await call("GET", "/v1/update")).data.release === null);
+  check("Stück 1 der exe", (await put("Emberleaf.exe", 1, exe.slice(PART))) === 200);
+  check("die jar", (await put("emberleaf-client-0.0.8.jar", 0, jar)) === 200);
   check("veröffentlichen", (await call("POST", "/v1/update/publish", { id: rid }, ta)).status === 200);
-  const latest = await call("GET", "/v1/update", undefined, tb);
-  check("B sieht das Update", latest.data.release?.id === rid && latest.data.release.files[0].sha256 === digest);
-  const chunks = [];
-  for (let p = 0; p < 2; p++) {
-    const res = await worker.fetch(new Request(`https://lagerfeuer.test/v1/update/file?release=${rid}&file=${files[0].name}&part=${p}`, {
-      headers: { authorization: `Bearer ${tb}` } }), env);
-    chunks.push(new Uint8Array(await res.arrayBuffer()));
-  }
-  const joined = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
-  let o = 0;
-  for (const c of chunks) { joined.set(c, o); o += c.length; }
-  const back = [...new Uint8Array(await crypto.subtle.digest("SHA-256", joined))].map((b) => b.toString(16).padStart(2, "0")).join("");
-  check("B lädt die Datei identisch herunter", back === digest);
-  check("veröffentlicht: keine Stücke mehr änderbar", (await put(0, bytes.slice(0, 512 * 1024))) === 400);
-  for (let i = 0; i < 3; i++) {
-    const b2 = await call("POST", "/v1/update/begin", { files: [{ ...files[0], size: 5, sha256: "0".repeat(64) }] }, ta);
-    await worker.fetch(new Request(`https://lagerfeuer.test/v1/update/chunk?release=${b2.data.id}&file=${files[0].name}&part=0`, {
-      method: "PUT", headers: { authorization: `Bearer ${ta}` }, body: new Uint8Array(5) }), env);
-    await call("POST", "/v1/update/publish", { id: b2.data.id }, ta);
+  const latest = (await call("GET", "/v1/update")).data.release;
+  check("alle sehen 0.0.8", latest?.version === "0.0.8" && latest.files[0].sha256 === files[0].sha256 && latest.notes.includes("Webseite"));
+  const dl = await worker.fetch(new Request(`https://lagerfeuer.test${latest.files[0].url}`), env);
+  const back = new Uint8Array(await dl.arrayBuffer());
+  check("exe kommt identisch an (2 Stücke)", dl.status === 200 && back.length === exe.length && (await sha(back)) === files[0].sha256);
+  check("Download-Kopfzeilen", dl.headers.get("content-disposition").includes("Emberleaf.exe") && dl.headers.get("x-emberleaf-version") === "0.0.8");
+  const viaLatest = await worker.fetch(new Request("https://lagerfeuer.test/download/latest/mod"), env);
+  check("/download/latest/mod", viaLatest.status === 200 && (await sha(new Uint8Array(await viaLatest.arrayBuffer()))) === files[1].sha256);
+  const head = await worker.fetch(new Request(`https://lagerfeuer.test${latest.files[0].url}`, { method: "HEAD" }), env);
+  check("HEAD mit Größe", head.status === 200 && head.headers.get("content-length") === String(exe.length));
+  check("unbekannte Datei: 404", (await worker.fetch(new Request(`https://lagerfeuer.test/download/${rid}/gibts-nicht.jar`), env)).status === 404);
+  check("veröffentlicht: keine Stücke mehr änderbar", (await put("emberleaf-client-0.0.8.jar", 0, jar)) === 400);
+  check("gleiche Version nochmal: abgelehnt", (await call("POST", "/v1/update/begin", { version: "0.0.8", files }, ta)).status === 400);
+
+  // abgebrochener Entwurf wird verworfen, KV wird sauber
+  const b2 = await call("POST", "/v1/update/begin", { version: "0.0.9", files: [files[1]] }, ta);
+  const kvBefore = kv.size;
+  await worker.fetch(new Request(`https://lagerfeuer.test/v1/update/part?release=${b2.data.id}&file=emberleaf-client-0.0.8.jar&part=0`,
+    { method: "PUT", headers: { authorization: `Bearer ${ta}` }, body: jar }), env);
+  check("Entwurf verwerfen", (await call("POST", "/v1/update/discard", { id: b2.data.id }, ta)).status === 200 && kv.size === kvBefore);
+
+  // nach mehr als 3 Versionen werden die alten Dateien aufgeräumt, der Eintrag bleibt in der Liste
+  for (const v of ["0.0.9", "0.1.0", "0.1.1"]) {
+    const b = await call("POST", "/v1/update/begin", { version: v, files: [files[1]] }, ta);
+    await worker.fetch(new Request(`https://lagerfeuer.test/v1/update/part?release=${b.data.id}&file=emberleaf-client-0.0.8.jar&part=0`,
+      { method: "PUT", headers: { authorization: `Bearer ${ta}` }, body: jar }), env);
+    await call("POST", "/v1/update/publish", { id: b.data.id }, ta);
     await new Promise((r) => setTimeout(r, 5));
   }
-  check("alte Updates werden aufgeräumt", db.exec("SELECT COUNT(*) FROM releases")[0].values[0][0] === 2);
+  const list = (await call("GET", "/v1/releases")).data.releases;
+  check("Liste: neueste zuerst", list.map((r) => r.version).join(",") === "0.1.1,0.1.0,0.0.9,0.0.8");
+  check("0.0.8 aufgeräumt, aber noch in der Liste", list[3].available === false && list[3].files[0].url === null);
+  check("alte Stücke aus KV gelöscht", ![...kv.keys()].some((k) => k.startsWith(`release/${rid}/`)));
+  check("alte Version nicht mehr herunterladbar", (await worker.fetch(new Request(`https://lagerfeuer.test/download/${rid}/Emberleaf.exe`), env)).status === 404);
+  const noKv = await worker.fetch(new Request("https://lagerfeuer.test/v1/update/begin", {
+    method: "POST", headers: { authorization: `Bearer ${ta}`, "content-type": "application/json" }, body: JSON.stringify({ version: "0.2.0", files }) }),
+  { ...env, FILES: undefined });
+  check("ohne KV: klare Meldung", noKv.status === 500 && (await noKv.json()).error.includes("FILES"));
 } catch (e) {
   failures++;
   out("Absturz: " + e.stack, "fail");

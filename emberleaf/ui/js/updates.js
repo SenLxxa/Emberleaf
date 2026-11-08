@@ -1,4 +1,4 @@
-// Emberleaf-Updates: neue Versionen kommen von GitHub (tools/release.ps1 veröffentlicht sie).
+// Emberleaf-Updates: neue Versionen kommen von der Emberleaf-Webseite (der Besitzer lädt sie dort hoch).
 // Der Launcher lädt sie im Hintergrund und meldet sich dann mit "Jetzt neu starten / Später".
 import { $, api, esc, modal, setBusy, toast } from "./ui.js";
 
@@ -14,7 +14,7 @@ function when(seconds) {
   return new Date(seconds * 1000).toLocaleDateString("de-DE");
 }
 
-// Release-Text von GitHub: Zeilen mit "-" oder "*" werden Punkte, der Rest Absätze. Alles escaped.
+// Release-Text: Zeilen mit "-" oder "*" werden Punkte, der Rest Absätze. Alles escaped.
 export function notesHtml(text) {
   const lines = String(text || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (!lines.length) return "";
@@ -47,10 +47,10 @@ export function createUpdates({ state }) {
     const busy = busyNow();
     let headline;
     if (info.pending) headline = `<b>Emberleaf ${esc(info.pending.version)} ist fertig geladen.</b> Starte neu, um es zu installieren.`;
-    else if (info.newer && !info.self_update) headline = `Auf GitHub gibt es Emberleaf ${esc(info.latest)}. Du startest Emberleaf aus dem Quellcode, dort aktualisierst du mit <code>tools/install.ps1</code>.`;
+    else if (info.newer && !info.self_update) headline = `Auf der Webseite gibt es Emberleaf ${esc(info.latest)}. Du startest Emberleaf aus dem Quellcode, dort aktualisierst du mit <code>tools/install.ps1</code>.`;
     else if (info.newer) headline = `Emberleaf ${esc(info.latest)} wird gerade geladen …`;
     else if (info.latest) headline = `Du hast die neueste Version (${esc(info.app_version)}).`;
-    else headline = "Neue Versionen kommen automatisch von GitHub, bei dir und bei deinen Freunden.";
+    else headline = "Neue Versionen kommen automatisch von der Emberleaf-Webseite, bei dir und bei deinen Freunden.";
     root.innerHTML = `
       <h3>Emberleaf-Updates</h3>
       <p class="hint">${headline}</p>
@@ -63,7 +63,8 @@ export function createUpdates({ state }) {
       <div class="row-actions">
         ${info.pending ? `<button class="btn primary" id="upd-install">Jetzt neu starten</button>` : ""}
         <button class="btn" id="upd-check" ${busy ? "disabled" : ""}>Jetzt prüfen</button>
-        <button class="btn" id="upd-github">Auf GitHub ansehen</button>
+        <button class="btn" id="upd-site">Auf der Webseite ansehen</button>
+        ${info.owner ? `<button class="btn" id="upd-upload">Update hochladen</button>` : ""}
       </div>`;
   }
 
@@ -151,14 +152,15 @@ export function createUpdates({ state }) {
         info = res;
         if (res.pending) toast(`Emberleaf ${res.pending.version} ist fertig geladen 🎉`);
         else if (res.new?.length) toast(`Neu geladen: ${res.new.join(", ")}`);
-        else if (!res.latest) toast("Auf GitHub gibt es noch kein Emberleaf-Release.");
+        else if (!res.latest) toast("Auf der Webseite gibt es noch keine Emberleaf-Version.");
         else toast("Alles aktuell 👍");
       } catch (err) { toast(err.message, "error"); }
       refresh();
     }
     const btn = e.target.closest("#upd-install");
     if (btn) install(btn);
-    if (e.target.closest("#upd-github")) api("open_github").catch((err) => toast(err.message, "error"));
+    if (e.target.closest("#upd-site")) api("open_website", { page: "releases" }).catch((err) => toast(err.message, "error"));
+    if (e.target.closest("#upd-upload")) api("open_website", { page: "upload" }).catch((err) => toast(err.message, "error"));
   });
 
   return {

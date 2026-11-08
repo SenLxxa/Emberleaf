@@ -24,7 +24,7 @@ EXPOSED = {
     "login", "logout", "play", "game_status", "stop_game",
     "cosmetics", "equip", "save_cosmetic", "delete_cosmetic", "export_outfit", "model", "import_model",
     "friends", "friend_add", "friend_accept", "friend_remove", "update_status", "update_check", "update_install",
-    "update_seen", "open_github",
+    "update_seen", "open_website",
     "island_atlas", "playtime",
     "chats", "chat_messages", "chat_send", "chat_react", "chat_read", "chat_delete", "chat_group", "chat_group_add", "chat_group_leave",
     "chat_group_rename", "chat_game", "chat_move", "chat_image", "party", "party_action", "pair_phone",
@@ -366,11 +366,17 @@ class Api:
     def update_seen(self):
         return updates.mark_seen()
 
-    def open_github(self):
+    def open_website(self, page=""):
+        """Opens the Emberleaf website in the browser: the start page or the upload page logged in with this
+        account when possible, a section of the start page (releases, download, packs) without logging in."""
         import webbrowser
 
-        from .version import GITHUB_URL
-        webbrowser.open(f"{GITHUB_URL}/releases")
+        if page in ("download", "releases", "packs"):
+            url = f"{updates.SITE_URL}/#{page}"
+        else:
+            url = friends.website_url(updates.SITE_URL, "/upload" if page == "upload" else "/")
+        webbrowser.open(url)
+        return {"url": url.split("#login=")[0]}
 
     # ---------- Fenster ----------
 

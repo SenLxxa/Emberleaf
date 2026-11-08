@@ -1,4 +1,3 @@
-- Das Lagerfeuer brennt! Freundesliste, Chat, Party und die Cosmetics deiner Freunde funktionieren jetzt für alle, ohne dass du etwas eintragen musst
-- Melde dich im Launcher mit deinem Microsoft-Konto an, dann findet ihr euch: Freunde fügst du unter „Freunde“ (im Spiel mit Taste U) mit ihrem Minecraft-Namen hinzu
-- Im Hauptmenü des Spiels siehst du rechts oben, wer online ist und wo – ein Klick und du spielst mit
-- Alte Test-Adressen in den Einstellungen werden automatisch durch das gemeinsame Lagerfeuer ersetzt
+- Emberleaf hat jetzt eine eigene Webseite: Download, alle Versionen und bald Packs
+- Neuer Knopf „Webseite“ oben im Launcher: Damit bist du auf der Webseite gleich mit deinem Konto angemeldet
+- Updates kommen ab jetzt direkt von der Emberleaf-Webseite (nicht mehr von GitHub) – du musst nichts tun

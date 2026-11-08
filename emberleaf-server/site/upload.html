@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Update hochladen – Emberleaf</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#17110d">
+<link rel="icon" href="/app/favicon.png">
+<link rel="stylesheet" href="/s/site.css">
+<script type="module" src="/s/upload.js"></script>
+</head>
+<body class="upload-body">
+<header class="topbar solid" id="topbar">
+  <a class="brand" href="/"><img src="/s/img/leaf.svg" alt="" width="28" height="31"><span>Emberleaf</span></a>
+  <nav class="nav" aria-label="Seiten"><a href="/">Startseite</a><a href="/#releases">Releases</a></nav>
+  <div class="account" id="account"><button class="btn small" type="button" data-login>Anmelden</button></div>
+</header>
+
+<main class="upload-page">
+  <h1>Update hochladen</h1>
+  <p class="section-lead">Lade eine neue Emberleaf-Version hoch. Sobald du auf <b>Veröffentlichen</b> klickst, holen sich alle Launcher das Update innerhalb von 30 Minuten und zeigen „Jetzt neu starten“.</p>
+
+  <div class="gate" id="gate">
+    <p class="muted">Lädt …</p>
+  </div>
+
+  <form class="up-form" id="up-form" hidden novalidate>
+    <section class="up-card">
+      <h2><span class="num">1</span> Dateien</h2>
+      <label class="drop" id="drop">
+        <input type="file" id="files" multiple accept=".exe,.jar,.zip">
+        <b>Dateien hierher ziehen</b>
+        <span>oder klicken zum Auswählen: <code>Emberleaf.exe</code>, <code>emberleaf-client-x.y.z.jar</code>, <code>Emberleaf-Glut-x.y.z.zip</code></span>
+      </label>
+      <p class="hint">Die Dateien liegen nach einem Build in <code>emberleaf\dist\release-&lt;Version&gt;\</code>.</p>
+      <ul class="file-list" id="file-list"></ul>
+    </section>
+
+    <section class="up-card">
+      <h2><span class="num">2</span> Version und Text</h2>
+      <div class="field-row">
+        <label class="field">
+          <span>Version</span>
+          <input id="version" placeholder="0.0.8" inputmode="decimal" autocomplete="off" spellcheck="false">
+        </label>
+        <p class="hint" id="live-version"></p>
+      </div>
+      <label class="field">
+        <span>Was ist neu? (eine Zeile pro Punkt, mit „-“ am Anfang)</span>
+        <textarea id="notes" rows="6" maxlength="4000" placeholder="- Neue Pets&#10;- Weniger Ruckler im Hauptmenü"></textarea>
+      </label>
+    </section>
+
+    <section class="up-card">
+      <h2><span class="num">3</span> Veröffentlichen</h2>
+      <p class="form-error" id="up-error" role="alert"></p>
+      <div class="progress" id="progress" hidden>
+        <div class="bar"><span id="bar"></span></div>
+        <p id="progress-text" role="status"></p>
+      </div>
+      <div class="up-actions">
+        <button class="btn danger" type="button" id="discard" hidden>Abbrechen</button>
+        <button class="btn primary big" type="submit" id="publish">Hochladen und veröffentlichen</button>
+      </div>
+      <div class="done" id="done" hidden></div>
+    </section>
+  </form>
+
+  <section class="up-history">
+    <h2>Bisherige Versionen</h2>
+    <div class="release-list" id="history"><p class="muted">Lädt …</p></div>
+  </section>
+</main>
+
+<dialog class="login" id="login-dialog" aria-labelledby="login-title">
+  <form method="dialog" class="login-form" id="login-form">
+    <img src="/s/img/leaf.svg" alt="" width="48" height="53">
+    <h2 id="login-title">Mit Emberleaf anmelden</h2>
+    <p><b>Am schnellsten:</b> Öffne den Emberleaf-Launcher und klick oben auf <b>Webseite</b>. Dann bist du hier sofort angemeldet.</p>
+    <p class="muted">Oder: Launcher → Freunde → <b>Handy koppeln</b> und den Code hier eintippen.</p>
+    <label class="code-label" for="login-code">Code</label>
+    <input id="login-code" name="code" autocomplete="one-time-code" maxlength="7" placeholder="ABC 123" spellcheck="false">
+    <p class="form-error" id="login-error" role="alert"></p>
+    <div class="login-actions">
+      <button class="btn ghost" value="cancel" formnovalidate>Abbrechen</button>
+      <button class="btn primary" id="login-submit" value="ok">Anmelden</button>
+    </div>
+  </form>
+</dialog>
+</body>
+</html>
