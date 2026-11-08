@@ -124,6 +124,7 @@ public class EmberleafClient implements ClientModInitializer {
 			net.emberleaf.client.feature.Freelook.tick(mc);
 			net.emberleaf.client.feature.ChatExtras.tick(mc);
 			net.emberleaf.client.feature.Performance.tick(mc);
+			net.emberleaf.client.feature.Extras.tick(mc);
 			Zoom.tick(mc);
 			Emotes.tick(mc);
 			Pets.tick(mc);

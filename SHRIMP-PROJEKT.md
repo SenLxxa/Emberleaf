@@ -9,6 +9,27 @@ Stand: 04.11.2026
 - Alles soll mit Freunden teilbar sein
 - Der Screenshot war nur Inspiration
 
+## Stand 08.11.2026: Emberleaf 0.0.5 (gebaut, noch nicht veröffentlicht)
+- **Auf GitHub erschienen:** 0.0.3 und 0.0.4 (Cape-Physik: Capes biegen sich als Stoff, Cape-Funken „Cape-Effekte“,
+  neue Capes Phoenixschwinge/Frostkrone/Leerenriss/Prismenherz/Sturmbrecher, Eternal-Paket, Aura Himmelsglanz,
+  Emote Schweben; alte Bild-Capes und das Fuchs-Pet sind raus). Dazu `.github/workflows/release.yml`: Sobald
+  `APP_VERSION` in `version.py` auf `main` landet, baut GitHub Mod + exe und legt das Release an
+  (Notizen aus `.github/release-notes.md`). `version.py` und `gradle.properties` müssen dieselbe Version haben.
+- **0.0.5 baut darauf auf:**
+  - Freundesliste im Hauptmenü des Spiels (rechts oben): Köpfe, Abzeichen, Party, wo jemand spielt;
+    Klick = mitspielen oder schreiben, „+ Freund hinzufügen“.
+  - Outfits von Freunden werden sofort neu geladen, wenn sie sich ändern (Zeitstempel vom Lagerfeuer).
+  - 20 neue Module, z. B. Sprinten/Schleichen umschalten, Haltbarkeits-Warnung, Kein Kamerawackeln, Reichweite & Combo,
+    Feuer niedriger, Kein Kürbis-Rand, Wetter ausblenden, Fadenkreuz-Farbe, Scoreboard ausblenden, Trank-Effekte,
+    Item-Zähler, Hunger & Sättigung, Minecraft-Tag, Server-Info, Uhrzeit im Chat, Spam zusammenfassen, Ping als Zahl,
+    Lagerfeuer-Nachrichten, Party: Leiter folgen.
+  - Launcher: Spielfenster-Größe, Vollbild, Java-Argumente, „Nach dem Spielen wieder öffnen“; Standard-Skin
+    (Emberleaf-Camper) für alle ohne eigenen Skin; Lagerfeuer-Seite erklärt alles in 3 Schritten.
+- **Warum Freundesliste und fremde Cosmetics noch fehlen:** Das Lagerfeuer (Freunde-Server) ist noch nicht online.
+  Dafür braucht es einen kostenlosen Cloudflare-Account (legt der Besitzer selbst an), dann
+  `emberleaf-server\tools\deploy.ps1` und die Adresse in `LAGERFEUER_URL` (`emberleaf/backend/version.py`).
+  Danach kommt es mit dem nächsten Update zu allen.
+
 ## Stand 05.11.2026 (Nachmittag): Emberleaf Alpha 0.0.2
 - **Version:** Launcher und Client-Mod heißen jetzt **0.0.2 Alpha** (`emberleaf/backend/version.py`, `gradle.properties`).
 - **Texturenpaket „Emberleaf Texturen“ 3.0** (ersetzt die selbstgemalten 2.0/64x-Pakete): wird auf jedem PC aus den

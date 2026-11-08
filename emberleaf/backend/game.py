@@ -171,20 +171,28 @@ def _ensure_pack_mods(profile):
 
 def build_command(profile, version_id, account, join_server=None):
     settings = storage.get_settings()
+    # emberleaf.dataDir tells the client mod where the equipped cosmetics (outfit.json) live; then your own Java arguments
+    jvm = [f"-Xmx{settings['ram_mb']}M", "-Xms512M", f"-Demberleaf.dataDir={storage.DATA_DIR}"]
+    jvm += [arg for arg in str(settings.get("jvm_args") or "").split() if storage.JVM_ARG_RE.fullmatch(arg)]
     options = {
         "username": account["name"],
         "uuid": account["id"],
         "token": account["access_token"],
         "executablePath": java_for(profile["mc_version"]),
-        # emberleaf.dataDir tells the client mod where the equipped cosmetics (outfit.json) live
-        "jvmArguments": [f"-Xmx{settings['ram_mb']}M", "-Xms512M", f"-Demberleaf.dataDir={storage.DATA_DIR}"],
+        "jvmArguments": jvm,
         "launcherName": LAUNCHER_NAME,
         "launcherVersion": APP_VERSION,
         "gameDirectory": str(storage.profile_dir(profile["id"])),
     }
+    width, height = int(settings.get("game_width") or 0), int(settings.get("game_height") or 0)
+    if width and height:
+        options.update(customResolution=True, resolutionWidth=str(width), resolutionHeight=str(height))
     if join_server:
         options["quickPlayMultiplayer"] = join_server  # "Mitspielen": joins the friend's server right away
-    return command.get_minecraft_command(version_id, MC_DIR, options)
+    cmd = command.get_minecraft_command(version_id, MC_DIR, options)
+    if settings.get("fullscreen"):
+        cmd.append("--fullscreen")
+    return cmd
 
 
 def _watch(proc, log_file):
@@ -199,8 +207,9 @@ def _watch(proc, log_file):
         _update(state="error", error=f"Minecraft ist abgestürzt (Code {code}). Das Protokoll liegt im Profil-Ordner unter logs.")
 
 
-def run(profile, get_account, on_started=None, join_server=None):
-    """Installs and starts the game in a background thread. get_account is called right before starting."""
+def run(profile, get_account, on_started=None, join_server=None, on_exit=None):
+    """Installs and starts the game in a background thread. get_account is called right before starting,
+    on_exit after Minecraft closed again."""
     global _process
     with _lock:
         if _job["state"] in ("installing", "running"):
@@ -232,6 +241,11 @@ def run(profile, get_account, on_started=None, join_server=None):
             if on_started:
                 on_started()
             _watch(proc, game_dir / "logs" / "emberleaf-start.log")
+            if on_exit:
+                try:
+                    on_exit()
+                except Exception:  # noqa: BLE001 - only a convenience (bringing the window back)
+                    pass
         except UserError as e:
             _update(state="error", error=str(e))
         except (UnsupportedVersion, VersionNotFound):

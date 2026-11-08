@@ -6,6 +6,11 @@
 	"environment": "client",
 	"entrypoints": {
 		"fabric-client-gametest": [
+			"net.emberleaf.gametest.MainMenuScreenshotTest",
+			"net.emberleaf.gametest.BlockbenchCosmeticsTest",
+			"net.emberleaf.gametest.CosmeticsScreenshotTest",
+			"net.emberleaf.gametest.TexturePackTest",
+			"net.emberleaf.gametest.ShaderTest",
 			"net.emberleaf.gametest.FeaturesTest"
 		]
 	},

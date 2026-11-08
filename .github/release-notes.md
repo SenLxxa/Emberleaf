@@ -1,4 +1,6 @@
-- Neue Capes für alle: Phoenixschwinge, Frostkrone, Leerenriss, Prismenherz und Sturmbrecher
-- Eternal-Paket für alle: Ewiges Licht (Cape), Engelsflügel, Heiligenschein, Lichtschwert und das Pet Lichtgeist
-- Neue Aura „Himmelsglanz“ und neues Emote „Schweben“ (auch im Spiel, Taste B)
-- Die alten Capes und das Fuchs-Pet sind raus. Eigene Bild-Capes malst du weiter im Cape-Editor.
+- Freundesliste jetzt auch im Hauptmenü im Spiel (rechts oben): Klick auf einen Freund = mitspielen oder schreiben
+- Outfits deiner Freunde sind sofort aktuell, sobald sie etwas Neues anziehen
+- 20 neue Einstellungen im Emberleaf-Menü (Rechte Shift-Taste), z. B. Sprinten umschalten, Kein Kamerawackeln, Fadenkreuz-Farbe, Trank-Effekte, Item-Zähler, Uhrzeit im Chat, Spam zusammenfassen und Ping als Zahl
+- Neue Launcher-Einstellungen: Größe des Spielfensters, Vollbild, Java-Argumente und „Nach dem Spielen wieder öffnen“
+- Ohne eigenen Skin (oder offline) steht jetzt der Emberleaf-Camper da statt einer leeren Figur
+- Das Lagerfeuer (Freunde) wird im Launcher einfacher erklärt

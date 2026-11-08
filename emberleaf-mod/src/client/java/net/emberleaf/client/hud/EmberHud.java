@@ -10,11 +10,15 @@ import net.emberleaf.client.menu.Ui;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.Hud;
 import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 /** Emberleaf's HUD widgets in warm rounded panels: FPS, coordinates, direction, biome, clock, ping, speed, armour and keys. */
 public final class EmberHud {
@@ -73,6 +77,16 @@ public final class EmberHud {
 			lines.add("Spielzeit " + net.emberleaf.client.feature.Playtime.format(net.emberleaf.client.feature.Playtime.total())
 				+ "  ·  heute " + net.emberleaf.client.feature.Playtime.format(net.emberleaf.client.feature.Playtime.today()));
 		}
+		if (Modules.on("hud_food")) {
+			var food = mc.player.getFoodData();
+			lines.add(String.format("Hunger %d/20  ·  Sättigung %.1f", food.getFoodLevel(), food.getSaturationLevel()).replace('.', ','));
+		}
+		if (Modules.on("hud_day") && mc.level != null) lines.add("Tag " + (mc.level.getOverworldClockTime() / 24000L + 1));
+		if (Modules.on("hud_server")) lines.add(serverLine(mc));
+		if (Modules.on("reach_display")) {
+			String reach = net.emberleaf.client.feature.Extras.reachLine();
+			if (reach != null) lines.add(reach);
+		}
 
 		int x = 6;
 		int y = 6;
@@ -83,9 +97,87 @@ public final class EmberHud {
 			Ui.text(g, text, x + 6, y + 3.5F, 0xFFFFEBD4);
 			y += 18;
 		}
-		if (Modules.on("hud_armor")) armor(g, mc, x, y);
+		if (Modules.on("hud_armor")) y = armor(g, mc, x, y);
+		if (Modules.on("hud_items")) y = items(g, mc, x, y);
+		if (Modules.on("hud_effects")) effects(g, mc, x, y);
 		if (Modules.on("hud_keys")) keys(g, mc);
 		net.emberleaf.client.feature.Minimap.render(g, mc);
+	}
+
+	private static String serverLine(Minecraft mc) {
+		if (mc.isLocalServer() || mc.getCurrentServer() == null) return "Einzelspieler";
+		int players = mc.getConnection() != null ? mc.getConnection().getListedOnlinePlayers().size() : 0;
+		return mc.getCurrentServer().ip + "  ·  " + players + " Spieler";
+	}
+
+	private static ItemStack[] counterIcons;
+
+	/** Arrows, totems, ender pearls, golden apples and rockets you carry (only what you have). */
+	private static int items(GuiGraphicsExtractor g, Minecraft mc, int x, int y) {
+		if (counterIcons == null) {
+			counterIcons = new ItemStack[] {new ItemStack(Items.ARROW), new ItemStack(Items.TOTEM_OF_UNDYING), new ItemStack(Items.ENDER_PEARL),
+				new ItemStack(Items.GOLDEN_APPLE), new ItemStack(Items.FIREWORK_ROCKET)};
+		}
+		int[] counts = new int[counterIcons.length];
+		var inventory = mc.player.getInventory();
+		for (int i = 0; i < inventory.getContainerSize(); i++) {
+			ItemStack s = inventory.getItem(i);
+			if (s.isEmpty()) continue;
+			if (s.is(Items.ARROW) || s.is(Items.SPECTRAL_ARROW) || s.is(Items.TIPPED_ARROW)) counts[0] += s.getCount();
+			else if (s.is(Items.TOTEM_OF_UNDYING)) counts[1] += s.getCount();
+			else if (s.is(Items.ENDER_PEARL)) counts[2] += s.getCount();
+			else if (s.is(Items.GOLDEN_APPLE) || s.is(Items.ENCHANTED_GOLDEN_APPLE)) counts[3] += s.getCount();
+			else if (s.is(Items.FIREWORK_ROCKET)) counts[4] += s.getCount();
+		}
+		int shown = 0;
+		int width = 4;
+		for (int count : counts) {
+			if (count <= 0) continue;
+			shown++;
+			width += 22 + Ui.font().width(Ui.menu(String.valueOf(count)));
+		}
+		if (shown == 0) return y;
+		Ui.nineSlice(g, Ui.PANEL, x, y, width, 20, 5, 0xE6FFFFFF);
+		int cx = x + 3;
+		for (int i = 0; i < counts.length; i++) {
+			if (counts[i] <= 0) continue;
+			g.item(counterIcons[i], cx, y + 2);
+			Component n = Ui.menu(String.valueOf(counts[i]));
+			Ui.text(g, n, cx + 18, y + 6, 0xFFFFEBD4);
+			cx += 22 + Ui.font().width(n);
+		}
+		return y + 24;
+	}
+
+	/** Your effects with level and time left (blinks shortly before it ends). */
+	private static void effects(GuiGraphicsExtractor g, Minecraft mc, int x, int y) {
+		List<MobEffectInstance> effects = new ArrayList<>(mc.player.getActiveEffects());
+		effects.sort((a, b) -> Integer.compare(b.isInfiniteDuration() ? Integer.MAX_VALUE : b.getDuration(),
+			a.isInfiniteDuration() ? Integer.MAX_VALUE : a.getDuration()));
+		for (MobEffectInstance e : effects) {
+			if (!e.showIcon()) continue;
+			String name = e.getEffect().value().getDisplayName().getString() + (e.getAmplifier() > 0 ? " " + roman(e.getAmplifier() + 1) : "");
+			String time = e.isInfiniteDuration() ? "∞" : ticks(e.getDuration());
+			Component text = Ui.menu(name + "  " + time);
+			int w = Ui.font().width(text) + 30;
+			Ui.nineSlice(g, Ui.PANEL, x, y, w, 18, 5, 0xE6FFFFFF);
+			g.blitSprite(RenderPipelines.GUI_TEXTURED, Hud.getMobEffectSprite(e.getEffect()), x + 3, y + 1, 16, 16);
+			int color = e.getEffect().value().isBeneficial() ? 0xFFFFEBD4 : 0xFFFF9A8A;
+			if (!e.isInfiniteDuration() && e.getDuration() < 200 && System.currentTimeMillis() / 400 % 2 == 0) color = 0xFFFFD24A;
+			Ui.text(g, text, x + 23, y + 5, color);
+			y += 21;
+		}
+	}
+
+	private static String ticks(int ticks) {
+		int seconds = ticks / 20;
+		return seconds >= 3600 ? String.format("%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+			: String.format("%d:%02d", seconds / 60, seconds % 60);
+	}
+
+	private static String roman(int n) {
+		String[] r = {"", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"};
+		return n >= 0 && n < r.length ? r[n] : String.valueOf(n);
 	}
 
 	private static String direction(float yaw) {
@@ -94,14 +186,14 @@ public final class EmberHud {
 		return names[i];
 	}
 
-	private static void armor(GuiGraphicsExtractor g, Minecraft mc, int x, int y) {
+	private static int armor(GuiGraphicsExtractor g, Minecraft mc, int x, int y) {
 		EquipmentSlot[] slots = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET, EquipmentSlot.MAINHAND};
 		List<ItemStack> items = new ArrayList<>();
 		for (EquipmentSlot slot : slots) {
 			ItemStack stack = mc.player.getItemBySlot(slot);
 			if (!stack.isEmpty() && (slot != EquipmentSlot.MAINHAND || stack.isDamageableItem())) items.add(stack);
 		}
-		if (items.isEmpty()) return;
+		if (items.isEmpty()) return y;
 		Ui.nineSlice(g, Ui.PANEL, x, y, 64, items.size() * 18 + 4, 5, 0xE6FFFFFF);
 		for (int i = 0; i < items.size(); i++) {
 			ItemStack stack = items.get(i);
@@ -116,6 +208,7 @@ public final class EmberHud {
 				Ui.text(g, Ui.menu("×" + stack.getCount()), x + 22, iy + 4, 0xFFFFEBD4);
 			}
 		}
+		return y + items.size() * 18 + 8;
 	}
 
 	private static void keys(GuiGraphicsExtractor g, Minecraft mc) {

@@ -110,20 +110,22 @@ export function createFriends({ state, login, join, onFriends }) {
     body.innerHTML = `
       <div class="setup-card">
         <div class="setup-emoji">🔥</div>
-        <h3>Lagerfeuer anzünden</h3>
-        <p>Für Freunde, Chat und Party braucht ihr einen kleinen gemeinsamen Server. Er ist kostenlos und speichert nur Namen, Freundschaften, Online-Status, Chats und eure Cosmetics.</p>
+        <h3>Das Lagerfeuer brennt noch nicht</h3>
+        <p>Das Lagerfeuer ist der kleine Emberleaf-Server für euch alle: Über ihn findet ihr euch als Freunde, chattet (auch vom Handy),
+          macht Partys und seht im Spiel gegenseitig eure Cosmetics, Abzeichen und Emotes.</p>
         <ol class="setup-steps">
-          <li>Einer von euch richtet das Lagerfeuer <b>einmal</b> bei Cloudflare ein (kostenlos, ca. 5 Minuten). <button class="btn small" id="fr-guide">Anleitung öffnen</button></li>
-          <li>Danach gibt es eine Adresse wie <code>https://lagerfeuer.dein-name.workers.dev</code>.</li>
-          <li>Alle tragen <b>dieselbe Adresse</b> hier ein, fertig.</li>
+          <li><b>Ihr müsst nichts eintragen.</b> Sobald das Lagerfeuer einmal angezündet ist, kommt es mit dem nächsten Emberleaf-Update automatisch zu allen.</li>
+          <li>Danach steht hier deine Freundesliste. Freunde fügst du mit ihrem Minecraft-Namen hinzu.</li>
+          <li>Im Spiel öffnest du das Lagerfeuer mit <b>U</b>, im Hauptmenü steht die Liste rechts oben.</li>
         </ol>
-        <div class="field">
-          <label for="fr-server">Adresse eures Lagerfeuers</label>
+        <details class="setup-advanced">
+          <summary>Eigenes Lagerfeuer verbinden (für Bastler)</summary>
+          <p class="hint">Habt ihr schon ein eigenes Lagerfeuer bei Cloudflare? Dann trag seine Adresse hier ein. <button class="btn small" id="fr-guide">Anleitung</button></p>
           <div class="setup-row">
             <input class="input" id="fr-server" autocomplete="off" placeholder="https://lagerfeuer.dein-name.workers.dev">
             <button class="btn primary" id="fr-server-save">Verbinden</button>
           </div>
-        </div>
+        </details>
       </div>`;
     const input = $("#fr-server", body);
     const save = async () => {

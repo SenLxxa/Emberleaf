@@ -126,8 +126,9 @@ public class EmberleafTitleScreen extends TitleScreen {
 		access.setTooltip(Tooltip.create(Component.translatable("options.accessibility.tooltip")));
 		add(new EmberButton(left + 48, y, buttonW - 48, 20, Component.translatable("menu.quit"), b -> this.minecraft.stop()));
 
-		int panelW = Math.min(170, Math.max(130, Math.round(this.width * 0.24F)));
-		add(new FriendsPanel(this.width - panelW - 12, 12, panelW, this::joinFriend));
+		// the friends list on the right, above the player figure
+		int panelW = Math.min(180, Math.max(136, Math.round(this.width * 0.25F)));
+		add(new FriendsPanel(this.width - panelW - 12, 12, panelW, Math.round(this.height * 0.6F), this::joinFriend));
 
 		Component credits = Ui.menu(Component.translatable("title.credits"));
 		int cw = this.font.width(credits);

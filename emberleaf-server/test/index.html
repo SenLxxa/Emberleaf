@@ -117,6 +117,7 @@ try {
   check("B sieht A's Abzeichen (Gründer vom Server, 10 h, Freund)", JSON.stringify(sb.data.players[A.uuid]?.badges)
     === JSON.stringify(["founder", "alpha", "h10", "friend", "explorer"]), JSON.stringify(sb.data.players[A.uuid]));
   check("B sieht A's Kondensstreifen (Rosa ab 5 h)", sb.data.players[A.uuid]?.contrail === "rose");
+  check("B sieht, wann A's Outfit zuletzt geändert wurde", sb.data.players[A.uuid]?.outfit > 0, String(sb.data.players[A.uuid]?.outfit));
   const sa2 = await call("POST", "/v1/sync", { online: true, server: "play.test", nearby: [B.uuid] }, ta);
   check("A sieht B winken", sa2.data.emotes[B.uuid]?.id === "emote-wave" && sa2.data.emotes[B.uuid].age >= 300);
   check("Gründer-Abzeichen lässt sich nicht erschummeln", JSON.stringify(sa2.data.players[B.uuid]?.badges) === JSON.stringify(["h500", "friend", "nightowl"]),

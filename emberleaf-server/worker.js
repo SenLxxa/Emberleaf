@@ -391,7 +391,7 @@ async function sync(request, env, me) {
 	const first = statements.length;
 	statements.push(
 		env.DB.prepare("SELECT uuid, emote, started FROM emotes WHERE started > ?1 AND uuid IN (SELECT value FROM json_each(?2))").bind(ms - EMOTE_MS, nearby),
-		env.DB.prepare(`SELECT p.uuid, p.name, ${STATS_COLUMNS} FROM players p LEFT JOIN stats s ON s.uuid = p.uuid
+		env.DB.prepare(`SELECT p.uuid, p.name, p.outfit_updated, ${STATS_COLUMNS} FROM players p LEFT JOIN stats s ON s.uuid = p.uuid
 			WHERE p.uuid IN (SELECT value FROM json_each(?1))`).bind(nearby),
 		since >= 0
 			? env.DB.prepare(`SELECT m.id, m.chat, m.sender, p.name AS senderName, m.kind, m.text, m.sent, c.kind AS chatKind, c.name AS chatName
@@ -408,7 +408,8 @@ async function sync(request, env, me) {
 	const emotes = {};
 	for (const e of emoteRows) emotes[e.uuid] = { id: e.emote, age: Math.max(0, ms - e.started) };
 	const players = {};
-	for (const row of statRows) players[row.uuid] = { name: row.name, ...statsJson(env, row) };
+	// "outfit": when the player last changed their cosmetics, so clients fetch new ones right away
+	for (const row of statRows) players[row.uuid] = { name: row.name, outfit: row.outfit_updated || 0, ...statsJson(env, row) };
 	const messages = since >= 0 ? chatRows.map((m) => ({
 		id: m.id, chat: m.chat, chatKind: m.chatKind, chatName: m.chatName, sender: m.sender, senderName: m.senderName,
 		kind: m.kind, text: m.kind === "game" ? "lädt dich zu einem Spiel ein" : m.text, sent: m.sent,

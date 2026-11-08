@@ -6,7 +6,7 @@ import { createShop } from "./js/shop.js";
 import { createSkins } from "./js/skins.js";
 import { createUpdates } from "./js/updates.js";
 import { installCssTextures } from "./js/textures.js";
-import { $, $$, api, confirmDialog, drawHead, esc, modal, setBusy, toast } from "./js/ui.js";
+import { $, $$, api, confirmDialog, defaultSkin, drawHead, esc, modal, setBusy, toast } from "./js/ui.js";
 import { createWorld } from "./js/world.js";
 
 const LOADER_NAMES = { vanilla: "Vanilla", fabric: "Fabric", forge: "Forge", neoforge: "NeoForge" };
@@ -172,14 +172,21 @@ function renderAccount() {
 async function loadSkin() {
   const name = state.account?.name || state.settings.username;
   renderAccount();
-  if (!name) return renderPlay();
-  try {
-    state.skin = await api("skin", { name });
-    if (state.skin.skin) {
-      drawHead($("#account-head"), state.skin.skin);
-      await home.viewer.loadSkin(state.skin.skin, { model: state.skin.model });
-      await home.outfit.refreshSkin();
+  let skin = null;
+  if (name) {
+    try {
+      skin = await api("skin", { name });
+    } catch (e) {
+      toast(e.message, "error");
     }
+  }
+  // Without an own skin (guest, Mojang's default skin, offline) the figure wears Emberleaf's default skin,
+  // otherwise the figure and every cosmetics card would stay empty.
+  state.skin = skin?.skin ? skin : { ...(skin || {}), name: skin?.name || name || "", skin: defaultSkin(), model: "default", fallback: true };
+  try {
+    drawHead($("#account-head"), state.skin.skin);
+    await home.viewer.loadSkin(state.skin.skin, { model: state.skin.model });
+    await home.outfit.refreshSkin();
     shop.skinChanged();
     skinsPage.skinChanged();
   } catch (e) {
@@ -730,6 +737,11 @@ function renderSettings() {
   $("#set-friends").value = s.friends_server || "";
   $("#set-scene").value = s.menu_scene || "auto";
   $("#set-minimize").checked = s.minimize_on_play;
+  $("#set-restore").checked = s.restore_after_play !== false;
+  $("#set-width").value = s.game_width || "";
+  $("#set-height").value = s.game_height || "";
+  $("#set-fullscreen").checked = Boolean(s.fullscreen);
+  $("#set-jvm").value = s.jvm_args || "";
   if (state.account) {
     $("#account-hint").textContent = `Angemeldet als ${state.account.name}. Deine Anmeldung ist verschlüsselt auf diesem PC gespeichert.`;
     $("#account-actions").innerHTML = `<button class="btn" id="logout">Abmelden</button>`;
@@ -765,6 +777,11 @@ $("#settings-save").addEventListener("click", async (e) => {
       friends_server: $("#set-friends").value,
       menu_scene: $("#set-scene").value,
       minimize_on_play: $("#set-minimize").checked,
+      restore_after_play: $("#set-restore").checked,
+      game_width: Number($("#set-width").value) || 0,
+      game_height: Number($("#set-height").value) || 0,
+      fullscreen: $("#set-fullscreen").checked,
+      jvm_args: $("#set-jvm").value,
     });
     home.world.setScene(state.settings.menu_scene);
     toast("Gespeichert ✓");
@@ -855,8 +872,8 @@ async function init() {
   friendsPage.background();
   setTimeout(() => updatesCard.background(), 3000); // "updated to …" right away, "update ready" after the download
   setInterval(() => { if (state.page !== "friends" && !document.hidden) friendsPage.background(); }, 2 * 60 * 1000);
-  if (state.account || state.settings.username) await loadSkin();
-  else welcome();
+  if (!state.account && !state.settings.username) welcome();
+  await loadSkin();
 }
 
 init();

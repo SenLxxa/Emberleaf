@@ -238,7 +238,13 @@ class Api:
             if self.window is not None and storage.get_settings()["minimize_on_play"]:
                 self.window.minimize()
 
-        game.run(profile, get_account, on_started=started, join_server=server)
+        def ended():
+            # Minecraft closed: bring Emberleaf back if it hid itself for the game
+            settings = storage.get_settings()
+            if self.window is not None and settings["minimize_on_play"] and settings.get("restore_after_play"):
+                self.window.restore()
+
+        game.run(profile, get_account, on_started=started, join_server=server, on_exit=ended)
         return game.status()
 
     def game_status(self):

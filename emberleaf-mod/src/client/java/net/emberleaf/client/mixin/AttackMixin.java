@@ -17,6 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class AttackMixin {
 	@Inject(method = "attack", at = @At("TAIL"))
 	private void emberleaf$alwaysCrits(Player player, Entity entity, CallbackInfo ci) {
+		net.emberleaf.client.feature.Extras.onAttack(player, entity);
 		if (!Modules.on("always_crits") || !(entity instanceof LivingEntity)) return;
 		Minecraft mc = Minecraft.getInstance();
 		mc.particleEngine.createTrackingEmitter(entity, ParticleTypes.CRIT);

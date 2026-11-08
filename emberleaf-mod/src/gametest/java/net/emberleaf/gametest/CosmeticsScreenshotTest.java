@@ -48,6 +48,42 @@ public class CosmeticsScreenshotTest implements FabricClientGameTest {
 			context.waitTicks(20);
 			context.takeScreenshot("emberleaf-back");
 
+			// another Emberleaf player next to you, with the outfit the Lagerfeuer would send: their cosmetics must show too
+			java.util.UUID friendId = java.util.UUID.fromString("0b0b0b0b-0b0b-4b0b-8b0b-0b0b0b0b0b0b");
+			context.runOnClient(mc -> {
+				try {
+					JsonObject root = com.google.gson.JsonParser.parseString(Files.readString(dir.resolve("outfit.json"), StandardCharsets.UTF_8))
+						.getAsJsonObject();
+					net.emberleaf.client.outfit.Outfits.putRemote(friendId, net.emberleaf.client.outfit.OutfitStore.parse(root.getAsJsonObject("items")));
+				} catch (IOException e) {
+					throw new UncheckedIOException(e);
+				}
+				net.minecraft.client.player.RemotePlayer friend = new net.minecraft.client.player.RemotePlayer(mc.level,
+					new com.mojang.authlib.GameProfile(friendId, "PerryDasHuhn"));
+				friend.setId(900_001);
+				friend.snapTo(mc.player.getX() + 1.6, mc.player.getY(), mc.player.getZ() - 0.4, 200.0F, 5.0F);
+				friend.setYHeadRot(200.0F);
+				friend.setYBodyRot(200.0F);
+				mc.level.addEntity(friend);
+				mc.options.setCameraType(CameraType.THIRD_PERSON_FRONT);
+			});
+			for (int i = 0; i < 40; i++) {
+				context.runOnClient(mc -> {
+					mc.player.setYRot(180.0F);
+					mc.player.setYHeadRot(180.0F);
+					mc.player.setYBodyRot(180.0F);
+				});
+				context.waitTick();
+			}
+			context.takeScreenshot("emberleaf-friend-cosmetics");
+			context.runOnClient(mc -> {
+				if (net.emberleaf.client.outfit.Outfits.forPlayer(friendId).isEmpty()) {
+					throw new AssertionError("Das Outfit des anderen Spielers fehlt");
+				}
+				var entity = mc.level.getPlayerByUUID(friendId);
+				if (entity != null) entity.discard();
+			});
+
 			// Skin-Totem: in both hands, in the inventory and when it saves you
 			world.getServer().runCommand("item replace entity @a weapon.mainhand with minecraft:totem_of_undying");
 			world.getServer().runCommand("item replace entity @a weapon.offhand with minecraft:totem_of_undying");

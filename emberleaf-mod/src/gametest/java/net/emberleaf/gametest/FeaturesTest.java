@@ -130,6 +130,31 @@ public class FeaturesTest implements FabricClientGameTest {
 			context.waitTicks(10);
 			context.takeScreenshot("features-settings");
 			context.setScreen(() -> null);
+
+			// the new settings: effects with time, item counter, hunger, day, server, coloured crosshair, chat time and spam stacking
+			server.runCommand("effect give @a minecraft:speed 95 1");
+			server.runCommand("effect give @a minecraft:night_vision 400 0");
+			server.runCommand("give @a minecraft:arrow 48");
+			server.runCommand("give @a minecraft:totem_of_undying 2");
+			server.runCommand("give @a minecraft:ender_pearl 9");
+			context.runOnClient(mc -> {
+				for (String id : new String[] {"hud_effects", "hud_items", "hud_food", "hud_day", "hud_server", "chat_timestamps", "chat_stack",
+					"crosshair_color", "toggle_sprint"}) {
+					Modules.set(id, true);
+				}
+				Modules.setChoice("crosshair_color", "cyan");
+				for (int i = 0; i < 3; i++) mc.gui.hud.getChat().addClientSystemMessage(net.minecraft.network.chat.Component.literal("Server neustart in 5 Minuten"));
+			});
+			context.waitTicks(20);
+			context.takeScreenshot("features-new-hud");
+			context.runOnClient(mc -> {
+				if (!mc.options.toggleSprint().get()) throw new AssertionError("Sprinten umschalten wurde nicht übernommen");
+				Modules.set("toggle_sprint", false);
+			});
+			context.waitTicks(2);
+			context.runOnClient(mc -> {
+				if (mc.options.toggleSprint().get()) throw new AssertionError("Sprinten umschalten wurde nicht zurückgestellt");
+			});
 			// AFK camera: nobody touched anything for a minute
 			context.runOnClient(mc -> Freelook.forceAfk());
 			context.waitTicks(60);

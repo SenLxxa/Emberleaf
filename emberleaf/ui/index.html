@@ -243,6 +243,24 @@
               </div>
             </div>
             <label class="check"><input type="checkbox" id="set-minimize"> Emberleaf beim Spielstart minimieren</label>
+            <label class="check"><input type="checkbox" id="set-restore"> Nach dem Spielen wieder öffnen</label>
+          </div>
+          <div class="card">
+            <h3>Spielfenster</h3>
+            <p class="hint">Wie groß Minecraft startet. Leer lassen = Minecraft-Standard (854 × 480).</p>
+            <div class="setup-row">
+              <div class="field"><label for="set-width">Breite</label><input class="input" id="set-width" type="number" min="320" max="7680" placeholder="1920"></div>
+              <div class="field"><label for="set-height">Höhe</label><input class="input" id="set-height" type="number" min="320" max="7680" placeholder="1080"></div>
+            </div>
+            <label class="check"><input type="checkbox" id="set-fullscreen"> Im Vollbild starten</label>
+          </div>
+          <div class="card">
+            <h3>Java-Argumente (für Profis)</h3>
+            <p class="hint">Zusätzliche Argumente für Java, z. B. <code>-XX:+UseZGC</code>. Den Arbeitsspeicher stellst du oben ein. Im Zweifel leer lassen.</p>
+            <div class="field">
+              <label for="set-jvm">Argumente</label>
+              <input class="input" id="set-jvm" autocomplete="off" spellcheck="false" placeholder="leer = Emberleaf-Standard">
+            </div>
           </div>
           <div class="card">
             <h3>Hauptmenü</h3>

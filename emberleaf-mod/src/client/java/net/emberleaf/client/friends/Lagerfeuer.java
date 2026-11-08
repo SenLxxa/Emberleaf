@@ -152,6 +152,7 @@ public final class Lagerfeuer {
 				Badges.putRemote(uuid, badges);
 				Contrails.putRemoteColor(uuid, contrail);
 				PROFILES.put(uuid, new Profile(p.get("name").getAsString(), p.get("playtime").getAsLong(), List.copyOf(badges), contrail));
+				if (p.has("outfit")) FriendsSync.outfitChanged(uuid, p.get("outfit").getAsLong());
 			}
 		}
 		JsonObject chat = r.getAsJsonObject("chat");
@@ -261,11 +262,18 @@ public final class Lagerfeuer {
 		mc.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_BELL.value(), 1.5F, 0.35F));
 	}
 
-	/** Top right of the screen: the newest notifications, sliding in and fading out. */
+	/**
+	 * The newest notifications, sliding in and fading out: in the game top right (below the effect icons),
+	 * in the menus bottom right (the friends list is at the top there).
+	 */
 	public static void renderNotices(GuiGraphicsExtractor g) {
 		if (NOTICES.isEmpty()) return;
 		long now = System.currentTimeMillis();
-		int y = 6;
+		Minecraft mc = Minecraft.getInstance();
+		boolean inWorld = mc.level != null && mc.player != null;
+		int shown = 0;
+		for (Notice n : NOTICES) if (now - n.at() < NOTICE_MS) shown++;
+		int y = inWorld ? 6 + (mc.player.getActiveEffects().isEmpty() ? 0 : 52) : g.guiHeight() - 18 - shown * 34;
 		for (Notice n : NOTICES) {
 			float age = (now - n.at()) / (float) NOTICE_MS;
 			if (age >= 1) continue;

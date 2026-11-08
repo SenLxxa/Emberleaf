@@ -108,7 +108,7 @@ export function createSkins({ state, login, onApplied }) {
   }
 
   function render() {
-    const current = state.skin?.skin ? { id: "current", name: `${state.skin.name} (aktuell)`, model: state.skin.model, skin: state.skin.skin, current: true } : null;
+    const current = state.skin?.skin && !state.skin.fallback ? { id: "current", name: `${state.skin.name} (aktuell)`, model: state.skin.model, skin: state.skin.skin, current: true } : null;
     const all = current ? [current, ...library] : library;
     const grid = $("#skins-grid");
     if (!all.length) {

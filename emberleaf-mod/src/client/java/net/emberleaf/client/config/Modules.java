@@ -48,6 +48,17 @@ public final class Modules {
 	public static final int[] CONTRAIL_RGB = {0xFFFFFF, 0xFF8A3A, 0x7CC8FF, 0xFF8AC8, 0x7CF0B0, 0xB088FF, 0xFFD24A, 0};
 
 	/** Hours of playtime a choice needs (0 = always there). */
+	public static final List<String> CROSSHAIR_COLORS = List.of("white", "red", "green", "yellow", "cyan", "pink", "orange");
+	public static final List<String> CROSSHAIR_LABELS = List.of("Weiß", "Rot", "Grün", "Gelb", "Türkis", "Pink", "Glut");
+	private static final int[] CROSSHAIR_RGB = {0xFFFFFFFF, 0xFFFF4A4A, 0xFF6FE35A, 0xFFFFE04A, 0xFF5AE8F0, 0xFFFF7AD8, 0xFFFF8A3A};
+
+	/** The crosshair colour (ARGB), or 0 for Minecraft's own inverted crosshair. */
+	public static int crosshairColor() {
+		if (!on("crosshair_color")) return 0;
+		int i = CROSSHAIR_COLORS.indexOf(choice("crosshair_color"));
+		return CROSSHAIR_RGB[Math.max(0, i)];
+	}
+
 	public static int unlockHours(String moduleId, String choice) {
 		if (!moduleId.equals("contrail_color")) return 0;
 		int i = CONTRAIL_COLORS.indexOf(choice);
@@ -71,11 +82,18 @@ public final class Modules {
 		add("afk_camera", "AFK-Kamera", "Nach einer Minute ohne Eingabe kreist die Kamera um dich", Category.GAME, "item/recovery_compass_00", true, true);
 		add("panorama", "Panorama-Screenshots", "F9 macht ein 360°-Panorama von deiner Umgebung", Category.GAME, "item/painting", true, true);
 		add("confirm_quit", "Verlassen bestätigen", "Fragt nach, bevor du eine Welt oder einen Server verlässt", Category.GAME, "item/oak_door", true, true);
+		add("toggle_sprint", "Sprinten umschalten", "Sprint-Taste einmal drücken statt gedrückt halten", Category.GAME, "item/rabbit_foot", false, true);
+		add("toggle_sneak", "Schleichen umschalten", "Schleich-Taste einmal drücken statt gedrückt halten", Category.GAME, "item/leather_boots", false, true);
+		add("durability_warning", "Haltbarkeits-Warnung", "Warnt mit Ton, bevor Werkzeug, Waffe oder Rüstung kaputtgeht", Category.GAME,
+			"item/iron_pickaxe", true, true);
 		add(new Module("hit_particles", "Treffer-Partikel", "Mehr Funken bei jedem Treffer", Category.COMBAT, "item/iron_sword", true, true,
 			new Slider("Menge", 1, 10, 1, 1, "×"), List.of(), List.of()));
 		add("always_crits", "Immer Krit-Funken", "Jeder Treffer zeigt Krit- und Schärfe-Partikel", Category.COMBAT, "item/diamond_sword", false, true);
 		add("hide_offhand_totem", "Totem in der Zweithand verbergen", "Das Totem wirkt weiter, verdeckt aber nicht die Sicht", Category.COMBAT,
 			"item/totem_of_undying", false, true);
+		add("no_hurtcam", "Kein Kamerawackeln", "Bekommst du Schaden, kippt die Kamera nicht mehr", Category.COMBAT, "item/golden_apple", false, true);
+		add("reach_display", "Reichweite & Combo", "Zeigt im HUD, aus welcher Entfernung du getroffen hast und deine Trefferserie",
+			Category.COMBAT, "item/bow", false, true);
 		add("cosmetics", "Deine Cosmetics", "Hüte, Flügel, Capes und Rücken an deiner Figur", Category.COSMETICS, "item/golden_helmet", true, false);
 		add("cosmetics_others", "Cosmetics anderer", "Cosmetics deiner Freunde und anderer Emberleaf-Spieler", Category.COSMETICS, "item/totem_of_undying", true, false);
 		add("pets", "Pets", "Dein Begleiter läuft neben dir", Category.COSMETICS, "item/bone", true, false);
@@ -90,6 +108,13 @@ public final class Modules {
 			"item/writable_book", false, true);
 		add("clear_water", "Klares Wasser", "Unter Wasser siehst du viel weiter", Category.GRAPHICS, "item/water_bucket", false, true);
 		add("glowing_trims", "Leuchtende Besätze", "Rüstungsbesätze leuchten in der Nacht und in Höhlen", Category.GRAPHICS, "item/netherite_chestplate", true, true);
+		add("low_fire", "Feuer niedriger", "Wenn du brennst, verdeckt das Feuer weniger vom Bild", Category.GRAPHICS, "item/flint_and_steel", true, true);
+		add("no_pumpkin", "Kein Kürbis-Rand", "Mit geschnitztem Kürbis auf dem Kopf siehst du trotzdem alles", Category.GRAPHICS,
+			"block/carved_pumpkin", true, true);
+		add("no_weather", "Wetter ausblenden", "Kein Regen und Schnee vor deinen Augen (nur bei dir, das Wetter bleibt)", Category.GRAPHICS,
+			"block/snow", false, true);
+		add(new Module("crosshair_color", "Fadenkreuz-Farbe", "Gibt deinem Fadenkreuz eine eigene Farbe", Category.GRAPHICS, "item/red_dye",
+			false, true, null, CROSSHAIR_COLORS, CROSSHAIR_LABELS));
 		add(new Module("minimap", "Minimap", "Kleine Karte oben rechts, mit Freunden als Punkte", Category.HUD, "item/map", false, true,
 			new Slider("Zoom", 1, 4, 1, 1, " Bl./Px"), List.of(), List.of()));
 		add("minimap_mobs", "Mobs auf der Minimap", "Tiere und Monster als kleine Bilder auf der Minimap", Category.HUD, "item/rotten_flesh", true, true);
@@ -104,11 +129,22 @@ public final class Modules {
 		add("hud_keys", "Tastendrücke", "WASD, Leertaste und Klicks mit CPS", Category.HUD, "block/tripwire_hook", false, true);
 		add("hud_playtime", "Spielzeit", "Wie lange du heute und insgesamt gespielt hast", Category.HUD, "item/clock_00", false, true);
 		add("hide_bossbar", "Bossleiste ausblenden", "Keine Bossleisten oben im Bild", Category.HUD, "item/dragon_breath", false, true);
+		add("hide_scoreboard", "Scoreboard ausblenden", "Die Punkteliste am rechten Rand verschwindet", Category.HUD, "item/paper", false, true);
+		add("hud_effects", "Trank-Effekte", "Deine Effekte mit Stufe und Restzeit", Category.HUD, "item/potion", true, true);
+		add("hud_items", "Item-Zähler", "Pfeile, Totems, Enderperlen, Goldäpfel und Raketen im Inventar", Category.HUD, "item/arrow", false, true);
+		add("hud_food", "Hunger & Sättigung", "Hunger und die versteckte Sättigung als Zahl", Category.HUD, "item/cooked_beef", false, true);
+		add("hud_day", "Minecraft-Tag", "Der wievielte Tag es in deiner Welt ist", Category.HUD, "block/sunflower_front", false, true);
+		add("hud_server", "Server-Info", "Serveradresse und wie viele Spieler online sind", Category.HUD, "item/oak_sign", false, true);
 		add("speech_bubbles", "Sprechblasen", "Was Spieler schreiben, schwebt kurz über ihrem Kopf", Category.CHAT, "item/paper", true, true);
 		add("chat_heads", "Köpfe im Chat", "Vor jeder Nachricht der Kopf des Spielers", Category.CHAT, "item/book", true, true);
 		add("chat_peek", "Chat-Vorschau", "Taste Z halten: den ganzen Chat lesen, ohne ihn zu öffnen", Category.CHAT, "item/spyglass", true, true);
 		add("chat_symbols", "Chat-Symbole", "Sterne, Herzen, Pfeile … mit einem Klick in den Chat", Category.CHAT, "item/nether_star", true, true);
 		add("autotext", "AutoText", "Bis zu 5 Tasten senden vorbereitete Nachrichten oder Befehle", Category.CHAT, "item/writable_book", true, true);
+		add("chat_timestamps", "Uhrzeit im Chat", "Vor jeder Nachricht steht, wann sie kam", Category.CHAT, "item/clock_00", false, true);
+		add("chat_stack", "Spam zusammenfassen", "Gleiche Nachrichten hintereinander werden eine Zeile mit Zähler (×3)", Category.CHAT,
+			"item/slime_ball", true, true);
+		add("tab_ping", "Ping als Zahl", "In der Spielerliste (Tab) steht der Ping in Millisekunden statt Balken", Category.CHAT,
+			"item/compass_00", true, true);
 		add("lagerfeuer_notify", "Lagerfeuer-Nachrichten", "Nachrichten deiner Freunde oben rechts und im Chat (Taste U: Lagerfeuer-Chat)",
 			Category.CHAT, "item/campfire", true, true);
 		add("party_follow", "Party: Leiter folgen", "Wechselt der Party-Leiter den Server, kommst du automatisch mit", Category.CHAT,

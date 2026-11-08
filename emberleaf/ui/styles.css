@@ -663,6 +663,9 @@ select.input option, .select option { background: #241a15; color: var(--text); }
 .setup-steps b { color: #ffe9cc; }
 .setup-steps code, .setup-card code { padding: 1px 5px; border-radius: 3px; background: #120d0a; color: var(--gold); font-size: 12px; user-select: text; }
 .setup-row { display: flex; gap: 8px; }
+.setup-advanced { margin-top: 6px; padding: 10px 12px; border: 2px dashed var(--line); border-radius: 4px; text-align: left; }
+.setup-advanced summary { cursor: pointer; color: var(--text-soft); font-weight: 800; font-size: 13px; }
+.setup-advanced[open] summary { margin-bottom: 8px; }
 .setup-row .input { flex: 1; }
 
 .friends-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }

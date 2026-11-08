@@ -37,8 +37,14 @@ DEFAULT_SETTINGS = {
     "minimize_on_play": True,
     "friends_server": "",
     "menu_scene": "auto",
+    "restore_after_play": True,
+    "game_width": 0,
+    "game_height": 0,
+    "fullscreen": False,
+    "jvm_args": "",
 }
 MENU_SCENES = ("auto", "autumn", "nether", "end", "cave")
+JVM_ARG_RE = re.compile(r"-[A-Za-z0-9:_.=+\-/%,]+")
 FRIENDS_SERVER_RE = re.compile(r"(https://[A-Za-z0-9.\-]+(:\d+)?|http://(127\.0\.0\.1|localhost)(:\d+)?)")
 
 _lock = threading.RLock()
@@ -85,8 +91,21 @@ def save_settings(patch):
                 value = int(value)
                 if not 1024 <= value <= 32768:
                     raise UserError("Der Arbeitsspeicher muss zwischen 1 und 32 GB liegen.")
-            elif key == "minimize_on_play":
+            elif key in ("minimize_on_play", "restore_after_play", "fullscreen"):
                 value = bool(value)
+            elif key in ("game_width", "game_height"):
+                value = int(value or 0)
+                if value and not 320 <= value <= 7680:
+                    raise UserError("Die Fenstergröße muss zwischen 320 und 7680 Pixeln liegen (leer = Minecraft-Standard).")
+            elif key == "jvm_args":
+                value = " ".join(str(value or "").split())
+                if len(value) > 400:
+                    raise UserError("Das sind zu viele Java-Argumente.")
+                for token in value.split():
+                    if not JVM_ARG_RE.fullmatch(token):
+                        raise UserError(f"„{token}“ ist kein gültiges Java-Argument (sie fangen mit - an).")
+                    if token.startswith(("-Xmx", "-Xms")):
+                        raise UserError("Den Arbeitsspeicher stellst du mit dem Regler ein, nicht bei den Java-Argumenten.")
             elif key == "menu_scene":
                 value = str(value) if str(value) in MENU_SCENES else "auto"
             elif key == "friends_server":
@@ -96,7 +115,10 @@ def save_settings(patch):
             else:
                 value = str(value).strip()
             settings[key] = value
-        write_json(SETTINGS_FILE, settings)
+        stored = dict(settings)
+        if LAGERFEUER_URL and stored.get("friends_server") == LAGERFEUER_URL:
+            stored["friends_server"] = ""  # the built-in Lagerfeuer is not written down: a newer Emberleaf may bring another address
+        write_json(SETTINGS_FILE, stored)
         return settings
 
 

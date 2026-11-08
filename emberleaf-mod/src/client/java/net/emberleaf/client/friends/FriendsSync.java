@@ -57,7 +57,17 @@ public final class FriendsSync {
 	private static final long STATS_MS = 5 * 60_000;
 
 	private static final AtomicBoolean busy = new AtomicBoolean();
-	private static final Map<UUID, Long> fetched = new HashMap<>();
+	private static final Map<UUID, Long> fetched = new java.util.concurrent.ConcurrentHashMap<>();
+	/** When the outfit we have of a player was last changed by them (from /v1/outfits). */
+	private static final Map<UUID, Long> fetchedStamp = new java.util.concurrent.ConcurrentHashMap<>();
+
+	/**
+	 * The sync reports when a nearby player last changed their outfit; if that is newer than what we have,
+	 * fetch it right away instead of waiting for the regular refresh.
+	 */
+	public static void outfitChanged(UUID uuid, long stamp) {
+		if (stamp > fetchedStamp.getOrDefault(uuid, 0L)) fetched.remove(uuid);
+	}
 	private static volatile FriendsSession session;
 	private static volatile boolean syncSupported = true;
 	private static int uploadedGeneration = -1;
@@ -232,8 +242,11 @@ public final class FriendsSync {
 			fetched.put(uuid, now);
 			JsonElement entry = outfits.get(uuid.toString().replace("-", ""));
 			if (entry != null && entry.getAsJsonObject().has("items")) {
-				Outfits.putRemote(uuid, OutfitStore.parse(entry.getAsJsonObject().getAsJsonObject("items")));
+				JsonObject outfit = entry.getAsJsonObject();
+				fetchedStamp.put(uuid, outfit.has("updated") ? outfit.get("updated").getAsLong() : 0L);
+				Outfits.putRemote(uuid, OutfitStore.parse(outfit.getAsJsonObject("items")));
 			} else {
+				fetchedStamp.put(uuid, 0L);
 				Outfits.removeRemote(uuid);
 			}
 		}
@@ -281,8 +294,8 @@ public final class FriendsSync {
 
 	// ---------- Freundesliste (für das Hauptmenü) ----------
 
-	/** One friend as the Lagerfeuer reports it; {@code server} is null when offline. */
-	public record Friend(String uuid, String name, boolean online, @Nullable String server) {
+	/** One friend as the Lagerfeuer reports it; {@code server} is null when offline, {@code lastSeen} in seconds (0 = unknown). */
+	public record Friend(String uuid, String name, boolean online, @Nullable String server, long lastSeen) {
 		public boolean canJoin() {
 			return online && server != null && !server.equals("Einzelspieler");
 		}
@@ -321,8 +334,9 @@ public final class FriendsSync {
 				for (JsonElement el : data.getAsJsonArray("friends")) {
 					JsonObject f = el.getAsJsonObject();
 					JsonElement srv = f.get("server");
+					JsonElement seen = f.get("lastSeen");
 					list.add(new Friend(f.get("uuid").getAsString(), f.get("name").getAsString(), f.get("online").getAsBoolean(),
-						srv == null || srv.isJsonNull() ? null : srv.getAsString()));
+						srv == null || srv.isJsonNull() ? null : srv.getAsString(), seen == null || seen.isJsonNull() ? 0 : seen.getAsLong()));
 				}
 				list.sort((a, b) -> a.online() != b.online() ? (a.online() ? -1 : 1) : a.name().compareToIgnoreCase(b.name()));
 				friendsState = new FriendsState(FriendsState.Status.READY, List.copyOf(list), data.getAsJsonArray("incoming").size());
