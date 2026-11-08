@@ -9,7 +9,12 @@ Stand: 04.11.2026
 - Alles soll mit Freunden teilbar sein
 - Der Screenshot war nur Inspiration
 
-## Stand 08.11.2026: Emberleaf 0.0.5 (gebaut, noch nicht veröffentlicht)
+## Stand 08.11.2026: Emberleaf 0.0.5 (11 neue Pets) und 0.0.6
+- **0.0.5** kam aus einer anderen Sitzung: 11 neue Pets (Katze, Kupfergolem, Golden Retriever, Panda, Japanischer Drache,
+  Phönix-Küken, Sternenqualle, Kristallschildkröte, Runenwolf, Mini-Drohne, Mochi), Drache landet auf der Schulter,
+  schwebende Pets, Sitz-Animationen.
+- **0.0.6** sind die Punkte unten („0.0.5 baut darauf auf“ = jetzt 0.0.6), dazu Pet-Vorschaubilder im Launcher, die
+  wirklich das Pet zeigen.
 - **Auf GitHub erschienen:** 0.0.3 und 0.0.4 (Cape-Physik: Capes biegen sich als Stoff, Cape-Funken „Cape-Effekte“,
   neue Capes Phoenixschwinge/Frostkrone/Leerenriss/Prismenherz/Sturmbrecher, Eternal-Paket, Aura Himmelsglanz,
   Emote Schweben; alte Bild-Capes und das Fuchs-Pet sind raus). Dazu `.github/workflows/release.yml`: Sobald

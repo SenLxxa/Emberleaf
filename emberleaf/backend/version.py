@@ -1,5 +1,5 @@
 """The launcher's version: shown in the window, handed to Minecraft and sent as user agent."""
-APP_VERSION = "0.0.5"
+APP_VERSION = "0.0.6"
 APP_CHANNEL = "Alpha"
 APP_LABEL = f"{APP_VERSION} {APP_CHANNEL}"  # "0.0.2 Alpha"
 USER_AGENT = f"emberleaf-launcher/{APP_VERSION}"

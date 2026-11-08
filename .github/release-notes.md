@@ -1,10 +1,7 @@
-- 11 neue Pets für alle: Katze, Kupfergolem, Golden Retriever, Panda, Japanischer Drache, Phönix-Küken, Sternenqualle, Kristallschildkröte, Runenwolf, Mini-Drohne und Mochi
-- Der Japanische Drache fliegt im Kreis um dich herum und rollt sich auf deiner Schulter zusammen, sobald du stehen bleibst
-- Phönix-Küken, Sternenqualle und Mini-Drohne schweben neben dir in der Luft
-- Alle Pets setzen sich hin, wenn du ein paar Sekunden stehen bleibst, und haben eigene Sitz-Animationen
 - Freundesliste jetzt auch im Hauptmenü im Spiel (rechts oben): Klick auf einen Freund = mitspielen oder schreiben
 - Outfits deiner Freunde sind sofort aktuell, sobald sie etwas Neues anziehen
 - 20 neue Einstellungen im Emberleaf-Menü (Rechte Shift-Taste), z. B. Sprinten umschalten, Kein Kamerawackeln, Fadenkreuz-Farbe, Trank-Effekte, Item-Zähler, Uhrzeit im Chat, Spam zusammenfassen und Ping als Zahl
 - Neue Launcher-Einstellungen: Größe des Spielfensters, Vollbild, Java-Argumente und „Nach dem Spielen wieder öffnen“
 - Ohne eigenen Skin (oder offline) steht jetzt der Emberleaf-Camper da statt einer leeren Figur
+- Die Vorschaubilder der Pets zeigen jetzt wirklich das Pet
 - Das Lagerfeuer (Freunde) wird im Launcher einfacher erklärt
