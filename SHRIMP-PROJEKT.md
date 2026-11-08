@@ -30,10 +30,11 @@ Stand: 04.11.2026
     Lagerfeuer-Nachrichten, Party: Leiter folgen.
   - Launcher: Spielfenster-Größe, Vollbild, Java-Argumente, „Nach dem Spielen wieder öffnen“; Standard-Skin
     (Emberleaf-Camper) für alle ohne eigenen Skin; Lagerfeuer-Seite erklärt alles in 3 Schritten.
-- **Warum Freundesliste und fremde Cosmetics noch fehlen:** Das Lagerfeuer (Freunde-Server) ist noch nicht online.
-  Dafür braucht es einen kostenlosen Cloudflare-Account (legt der Besitzer selbst an), dann
-  `emberleaf-server\tools\deploy.ps1` und die Adresse in `LAGERFEUER_URL` (`emberleaf/backend/version.py`).
-  Danach kommt es mit dem nächsten Update zu allen.
+- **0.0.7: Das Lagerfeuer ist online** unter https://lagerfeuer.emberleaf-server.workers.dev (Cloudflare Worker +
+  D1-Datenbank „lagerfeuer“, Account des Besitzers, workers.dev-Name „emberleaf-server“). Die Adresse steht in
+  `LAGERFEUER_URL` (`emberleaf/backend/version.py`), alle Launcher nutzen sie von selbst. Neu hochladen nach
+  Server-Änderungen: `emberleaf-server\tools\deploy.ps1`. Die Emberleaf.exe ersetzt alte lokale Test-Adressen
+  (127.0.0.1/localhost) in den Einstellungen durch das gemeinsame Lagerfeuer.
 
 ## Stand 05.11.2026 (Nachmittag): Emberleaf Alpha 0.0.2
 - **Version:** Launcher und Client-Mod heißen jetzt **0.0.2 Alpha** (`emberleaf/backend/version.py`, `gradle.properties`).
